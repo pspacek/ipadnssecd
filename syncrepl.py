@@ -66,9 +66,9 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
         # Debugging
         self.log.debug('Detected %s of entry: %s %s', change_type, dn, uuid)
         if change_type == 'modify':
-            self.application_sync(dn, attributes, previous_attributes)
+            self.application_sync(uuid, dn, attributes, previous_attributes)
         else:
-            self.application_add(dn, attributes)
+            self.application_add(uuid, dn, attributes)
 
     def syncrepl_delete(self, uuids):
         # Make sure we know about the UUID being deleted, just in case...
@@ -78,7 +78,7 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
             attributes = self.__data['uuids'][uuid]
             dn = attributes['dn']
             self.log.debug('Detected deletion of entry: %s %s', dn, uuid)
-            self.application_del(dn, attributes)
+            self.application_del(uuid, dn, attributes)
             del self.__data['uuids'][uuid]
 
     def syncrepl_present(self, uuids, refreshDeletes=False):
@@ -99,19 +99,20 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
             for uuid in uuids:
                 self.__presentUUIDs[uuid] = True
 
-    def application_add(self, dn, attributes):
-        self.log.info('Performing application add for: %s', dn)
+    def application_add(self, uuid, dn, attributes):
+        self.log.info('Performing application add for: %s %s', dn, uuid)
         self.log.debug('New attributes: %s', attributes)
+        print attributes['idnsname']
         return True
 
-    def application_sync(self, dn, attributes, previous_attributes):
-        self.log.info('Performing application sync for: %s', dn)
+    def application_sync(self, uuid, dn, attributes, previous_attributes):
+        self.log.info('Performing application sync for: %s %s', dn, uuid)
         self.log.debug('Old attributes: %s', previous_attributes)
         self.log.debug('New attributes: %s', attributes)
         return True
 
-    def application_del(self, dn, previous_attributes):
-        self.log.info('Performing application delete for: %s', dn)
+    def application_del(self, uuid, dn, previous_attributes):
+        self.log.info('Performing application delete for: %s %s', dn, uuid)
         self.log.debug('Old attributes: %s', previous_attributes)
         return True
 

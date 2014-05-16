@@ -12,6 +12,9 @@ class ZoneListReader(object):
         self.zones = set()       # tuples (dns.name, UUID)
 
     def _add_zone(self, name, zid):
+        """Add zone & UUID to internal structures.
+
+        Zone with given name and UUID must not exist."""
         # detect duplicate zone names
         name = dns.name.from_text(name)
         assert name not in self.zone_names, \
@@ -24,8 +27,28 @@ class ZoneListReader(object):
         self.zone_uuids.add(zid)
         self.zones.add((name, zid))
 
+    def _del_zone(self, name, zid):
+        """Remove zone & UUID from internal structures.
+
+        Zone with given name and UUID must exist.
+        Do not use this with zid == None.
+        """
+        name = dns.name.from_text(name)
+        assert zid is not None
+        assert name in self.zone_names, \
+            'name (%s, %s) does not exist in %s' % (name, zid, self.zones)
+        assert zid in self.zone_uuids, \
+            'UUID (%s, %s) does not exist in %s' % (name, zid, self.zones)
+        assert (name, zid) in self.zones, \
+            'pair (%s, %s) does not exist in %s' % (name, zid, self.zones)
+
+        self.zone_names.remove(name)
+        self.zone_uuids.remove(zid)
+        self.zones.remove((name, zid))
+
 
 class ODSZoneListReader(ZoneListReader):
+    """One-shot parser for ODS zonelist.xml."""
     def __init__(self, zonelist_fn):
         super(ODSZoneListReader, self).__init__()
         self.log = logging.getLogger(__name__)
@@ -65,6 +88,29 @@ class ODSZoneListReader(ZoneListReader):
         zid = path[self.entryUUID_prefix_len:]
         return (name, zid)
 
+
+class LDAPZoneListReader(ZoneListReader):
+    def __init__(self):
+        super(LDAPZoneListReader, self).__init__()
+        self.log = logging.getLogger(__name__)
+
+    def process_ipa_zone(self, op, uuid, zone_ldap):
+        assert (op == 'add' or op == 'del'), 'unsupported op %s' % op
+        assert uuid is not None
+        assert 'idnsname' in zone_ldap, \
+            'LDAP zone UUID %s without idnsName' % uuid
+        assert len(zone_ldap['idnsname']) == 1, \
+            'LDAP zone UUID %s with len(idnsname) != 1' % uuid
+
+        if op == 'add':
+            self._add_zone(zone_ldap['idnsname'][0], uuid)
+        elif op == 'del':
+            self._del_zone(zone_ldap['idnsname'][0], uuid)
+
+
 logging.basicConfig(level=logging.DEBUG)
-zl = ODSZoneListReader('/tmp/zonelist.xml')
-print zl.zones
+ods_zl = ODSZoneListReader('/tmp/zonelist.xml')
+print ods_zl.zones
+
+ipa_zl = LDAPZoneListReader()
+print ipa_zl.zones
