@@ -3,6 +3,7 @@
 import logging
 from lxml import etree
 import dns.name
+import subprocess
 
 
 class ZoneListReader(object):
@@ -49,13 +50,13 @@ class ZoneListReader(object):
 
 class ODSZoneListReader(ZoneListReader):
     """One-shot parser for ODS zonelist.xml."""
-    def __init__(self, zonelist_fn):
+    def __init__(self, zonelist_text):
         super(ODSZoneListReader, self).__init__()
         self.log = logging.getLogger(__name__)
         # hack: zone object UUID is stored as path to imaginary zone file
         self.entryUUID_prefix = "/var/lib/ipa/dns/zone/entryUUID/"
         self.entryUUID_prefix_len = len(self.entryUUID_prefix)
-        xml = etree.parse(open('zonelist.xml', 'r'))
+        xml = etree.fromstring(zonelist_text)
         self._parse_zonelist(xml)
 
     def _parse_zonelist(self, xml):
@@ -108,9 +109,21 @@ class LDAPZoneListReader(ZoneListReader):
             self._del_zone(zone_ldap['idnsname'][0], uuid)
 
 
-logging.basicConfig(level=logging.DEBUG)
-ods_zl = ODSZoneListReader('/tmp/zonelist.xml')
-print ods_zl.zones
+def get_ods_zonelist(log):
+    cmd = ['ods-ksmutil', 'zonelist', 'export']
+    ksmutil = subprocess.Popen(
+        cmd, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    stdout, ignore = ksmutil.communicate()
+    if ksmutil.returncode != 0:
+        e = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
+        log.exception(e)
+        log.error("Command output: %s", stdout)
+        raise e
 
-ipa_zl = LDAPZoneListReader()
-print ipa_zl.zones
+    reader = ODSZoneListReader(stdout)
+    return reader
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    reader = get_ods_zonelist(logging.getLogger('test'))
+    print reader.zones
