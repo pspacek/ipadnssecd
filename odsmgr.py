@@ -32,7 +32,6 @@ class ZoneListReader(object):
         """Remove zone & UUID from internal structures.
 
         Zone with given name and UUID must exist.
-        Do not use this with zid == None.
         """
         name = dns.name.from_text(name)
         assert zid is not None
@@ -73,16 +72,14 @@ class ODSZoneListReader(ZoneListReader):
         attribute type = "File" and with value prefixed with entryUUID_prefix.
 
         Returns:
-            tuple (zone name, ID) if zone is IPA zone
-            tuple (zone name, None) otherwise
+            tuple (zone name, ID)
         """
         name = zone_xml.get('name')
         in_adapters = zone_xml.xpath(
             'Adapters/Input/Adapter[@type="File" '
             'and starts-with(text(), "%s")]' % self.entryUUID_prefix)
-        if len(in_adapters) != 1:
-            # zone without input adapter 'File' is not IPA zone for sure
-            return (name, None)
+        assert len(in_adapters) == 1, 'only IPA zones are supported: %s' \
+            % etree.tostring(zone_xml)
 
         path = in_adapters[0].text
         # strip prefix from path
