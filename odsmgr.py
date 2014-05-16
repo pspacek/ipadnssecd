@@ -120,6 +120,24 @@ def get_ods_zonelist(log):
     reader = ODSZoneListReader(stdout)
     return reader
 
+
+class ODSMgr(object):
+    """OpenDNSSEC zone manager. It does LDAP->ODS synchronization.
+
+    Zones with idnsSecInlineSigning attribute = TRUE in LDAP are added
+    or deleted from ODS as necessary. ODS->LDAP key synchronization
+    has to be solved seperatelly.
+    """
+    def __init__(self):
+        self.zl_ldap = LDAPZoneListReader()
+
+    def ldap_event(self, op, uuid, attrs):
+        """Process single LDAP event - zone addition or deletion."""
+        self.zl_ldap.process_ipa_zone(op, uuid, attrs)
+        print self.zl_ldap.zones
+
+    pass
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     reader = get_ods_zonelist(logging.getLogger('test'))

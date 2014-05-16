@@ -3,16 +3,20 @@
 import logging
 
 from syncrepl import SyncReplConsumer
-from zonelistreader import ODSZoneListReader, LDAPZoneListReader
+from odsmgr import ODSMgr
 
 SIGNING_ATTR = 'idnsSecInlineSigning'
 
+
 class KeySyncer(SyncReplConsumer):
     def __init__(self, *args, **kwargs):
-        self.zl_ldap = LDAPZoneListReader()
+        self.odsmgr = ODSMgr()
         SyncReplConsumer.__init__(self, *args, **kwargs)
 
     def __get_signing_attr(self, attrs):
+        """Get SIGNING_ATTR from dictionary with LDAP zone attributes.
+
+        Returned value is normalized to TRUE or FALSE, defaults to FALSE."""
         values = attrs.get(SIGNING_ATTR, ['FALSE'])
         assert len(values) == 1, '%s is expected to be single-valued' \
             % SIGNING_ATTR
@@ -24,21 +28,17 @@ class KeySyncer(SyncReplConsumer):
 
     def application_add(self, uuid, dn, newattrs):
         if self.__is_dnssec_enabled(newattrs):
-            self.zl_ldap.process_ipa_zone('add', uuid, newattrs)
-        self.log.debug(self.zl_ldap.zones)
+            self.odsmgr.ldap_event('add', uuid, newattrs)
 
     def application_del(self, uuid, dn, oldattrs):
         if self.__is_dnssec_enabled(oldattrs):
-            self.zl_ldap.process_ipa_zone('del', uuid, oldattrs)
-        self.log.debug(self.zl_ldap.zones)
+            self.odsmgr.ldap_event('del', uuid, oldattrs)
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
         oldval = self.__get_signing_attr(oldattrs)
         newval = self.__get_signing_attr(newattrs)
         if oldval != newval:
             if self.__is_dnssec_enabled(newattrs):
-                self.application_add(uuid, dn, newattrs)
+                self.odsmgr.ldap_event('add', uuid, newattrs)
             else:
-                self.application_del(uuid, dn, oldattrs)
-
-
+                self.odsmgr.ldap_event('del', uuid, oldattrs)
