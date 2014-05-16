@@ -9,6 +9,7 @@ to a local dict.
 import ldap
 import ldapurl
 # Import specific classes from python-ldap
+from ldap.cidict import cidict
 from ldap.ldapobject import ReconnectLDAPObject
 from ldap.syncrepl import SyncreplConsumer
 
@@ -29,10 +30,10 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
         # Initialise the LDAP Connection first
         ldap.ldapobject.ReconnectLDAPObject.__init__(self, *args, **kwargs)
         # Now prepare the data store
-        self.__data = dict()
-        self.__data['uuids'] = dict()
+        self.__data = cidict()
+        self.__data['uuids'] = cidict()
         # We need this for later internal use
-        self.__presentUUIDs = dict()
+        self.__presentUUIDs = cidict()
 
     def close_db(self):
         # This is useless for dict
@@ -51,9 +52,10 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
         self.__data['cookie'] = cookie
 
     def syncrepl_entry(self, dn, attributes, uuid):
+        attributes = cidict(attributes)
         # First we determine the type of change we have here
         # (and store away the previous data for later if needed)
-        previous_attributes = dict()
+        previous_attributes = cidict()
         if uuid in self.__data['uuids']:
             change_type = 'modify'
             previous_attributes = self.__data['uuids'][uuid]
@@ -102,7 +104,6 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
     def application_add(self, uuid, dn, attributes):
         self.log.info('Performing application add for: %s %s', dn, uuid)
         self.log.debug('New attributes: %s', attributes)
-        print attributes['idnsname']
         return True
 
     def application_sync(self, uuid, dn, attributes, previous_attributes):
