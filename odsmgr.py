@@ -10,7 +10,7 @@ class ZoneListReader(object):
     def __init__(self):
         self.zone_names = set()  # dns.name
         self.zone_uuids = set()  # UUID strings
-        self.zones = set()       # tuples (dns.name, UUID)
+        self.zones = dict()      # {UUID: dns.name}
 
     def _add_zone(self, name, zid):
         """Add zone & UUID to internal structures.
@@ -26,7 +26,7 @@ class ZoneListReader(object):
 
         self.zone_names.add(name)
         self.zone_uuids.add(zid)
-        self.zones.add((name, zid))
+        self.zones[zid] = name
 
     def _del_zone(self, name, zid):
         """Remove zone & UUID from internal structures.
@@ -39,8 +39,8 @@ class ZoneListReader(object):
             'name (%s, %s) does not exist in %s' % (name, zid, self.zones)
         assert zid in self.zone_uuids, \
             'UUID (%s, %s) does not exist in %s' % (name, zid, self.zones)
-        assert (name, zid) in self.zones, \
-            'pair (%s, %s) does not exist in %s' % (name, zid, self.zones)
+        assert zid in self.zones and name == self.zones[zid], \
+            'pair {%s: %s} does not exist in %s' % (zid, name, self.zones)
 
         self.zone_names.remove(name)
         self.zone_uuids.remove(zid)
@@ -135,8 +135,8 @@ class ODSMgr(object):
         """Process single LDAP event - zone addition or deletion."""
         self.zl_ldap.process_ipa_zone(op, uuid, attrs)
         print self.zl_ldap.zones
+        #zl_ods = get_ods_zonelist()
 
-    pass
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
