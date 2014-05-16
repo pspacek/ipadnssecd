@@ -1,0 +1,2 @@
+sudo -u ods -g ods ods-ksmutil zone add --zone $ZONENAME --input /var/lib/ipa/dns/zone/entryUUID/$ID
+sudo -u ods -g ods ods-control enforcer notify
