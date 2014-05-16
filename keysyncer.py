@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import logging
+import ldap.dn
 
 from syncrepl import SyncReplConsumer
 from odsmgr import ODSMgr
@@ -35,6 +36,10 @@ class KeySyncer(SyncReplConsumer):
             self.odsmgr.ldap_event('del', uuid, oldattrs)
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
+        olddn = ldap.dn.str2dn(oldattrs['dn'])
+        newdn = ldap.dn.str2dn(newattrs['dn'])
+        assert olddn == newdn, 'modrdn operation is not supported'
+
         oldval = self.__get_signing_attr(oldattrs)
         newval = self.__get_signing_attr(newattrs)
         if oldval != newval:
