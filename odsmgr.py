@@ -9,6 +9,7 @@ import subprocess
 ENTRYUUID_PREFIX = "/var/lib/ipa/dns/zone/entryUUID/"
 ENTRYUUID_PREFIX_LEN = len(ENTRYUUID_PREFIX)
 
+
 class ZoneListReader(object):
     def __init__(self):
         self.names = set()  # dns.name
@@ -106,7 +107,6 @@ class LDAPZoneListReader(ZoneListReader):
             self._del_zone(zone_ldap['idnsname'][0], uuid)
 
 
-
 class ODSMgr(object):
     """OpenDNSSEC zone manager. It does LDAP->ODS synchronization.
 
@@ -126,13 +126,14 @@ class ODSMgr(object):
         cmd = ['ods-ksmutil'] + params
         self.log.debug('Executing: %s', cmd)
         ksmutil = subprocess.Popen(
-            cmd, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            cmd, close_fds=True, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT)
         stdout, ignore = ksmutil.communicate()
         if ksmutil.returncode != 0:
-            e = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
-            self.log.exception(e)
+            ex = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
+            self.log.exception(ex)
             self.log.error("Command output: %s", stdout)
-            raise e
+            raise ex
         return stdout
 
     def get_ods_zonelist(self):
@@ -186,8 +187,8 @@ class ODSMgr(object):
         return removed
 
 
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    reader = self.get_ods_zonelist(logging.getLogger('test'))
+    ods = ODSMgr()
+    reader = ods.get_ods_zonelist()
     print reader.mapping

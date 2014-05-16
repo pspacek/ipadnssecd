@@ -9,6 +9,7 @@ import time
 
 from keysyncer import KeySyncer
 
+
 # Shutdown handler
 def commenceShutdown(signum, stack):
     # Declare the needed global variables
