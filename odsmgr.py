@@ -5,12 +5,15 @@ from lxml import etree
 import dns.name
 import subprocess
 
+# hack: zone object UUID is stored as path to imaginary zone file
+ENTRYUUID_PREFIX = "/var/lib/ipa/dns/zone/entryUUID/"
+ENTRYUUID_PREFIX_LEN = len(ENTRYUUID_PREFIX)
 
 class ZoneListReader(object):
     def __init__(self):
-        self.zone_names = set()  # dns.name
-        self.zone_uuids = set()  # UUID strings
-        self.zones = dict()      # {UUID: dns.name}
+        self.names = set()  # dns.name
+        self.uuids = set()  # UUID strings
+        self.mapping = dict()      # {UUID: dns.name}
 
     def _add_zone(self, name, zid):
         """Add zone & UUID to internal structures.
@@ -18,15 +21,15 @@ class ZoneListReader(object):
         Zone with given name and UUID must not exist."""
         # detect duplicate zone names
         name = dns.name.from_text(name)
-        assert name not in self.zone_names, \
-            'duplicate name (%s, %s) vs. %s' % (name, zid, self.zones)
+        assert name not in self.names, \
+            'duplicate name (%s, %s) vs. %s' % (name, zid, self.mapping)
         # duplicate non-None zid is not allowed
-        assert not zid or zid not in self.zone_uuids, \
-            'duplicate UUID (%s, %s) vs. %s' % (name, zid, self.zones)
+        assert not zid or zid not in self.uuids, \
+            'duplicate UUID (%s, %s) vs. %s' % (name, zid, self.mapping)
 
-        self.zone_names.add(name)
-        self.zone_uuids.add(zid)
-        self.zones[zid] = name
+        self.names.add(name)
+        self.uuids.add(zid)
+        self.mapping[zid] = name
 
     def _del_zone(self, name, zid):
         """Remove zone & UUID from internal structures.
@@ -35,16 +38,16 @@ class ZoneListReader(object):
         """
         name = dns.name.from_text(name)
         assert zid is not None
-        assert name in self.zone_names, \
-            'name (%s, %s) does not exist in %s' % (name, zid, self.zones)
-        assert zid in self.zone_uuids, \
-            'UUID (%s, %s) does not exist in %s' % (name, zid, self.zones)
-        assert zid in self.zones and name == self.zones[zid], \
-            'pair {%s: %s} does not exist in %s' % (zid, name, self.zones)
+        assert name in self.names, \
+            'name (%s, %s) does not exist in %s' % (name, zid, self.mapping)
+        assert zid in self.uuids, \
+            'UUID (%s, %s) does not exist in %s' % (name, zid, self.mapping)
+        assert zid in self.mapping and name == self.mapping[zid], \
+            'pair {%s: %s} does not exist in %s' % (zid, name, self.mapping)
 
-        self.zone_names.remove(name)
-        self.zone_uuids.remove(zid)
-        self.zones.remove((name, zid))
+        self.names.remove(name)
+        self.uuids.remove(zid)
+        del self.mapping[zid]
 
 
 class ODSZoneListReader(ZoneListReader):
@@ -52,9 +55,6 @@ class ODSZoneListReader(ZoneListReader):
     def __init__(self, zonelist_text):
         super(ODSZoneListReader, self).__init__()
         self.log = logging.getLogger(__name__)
-        # hack: zone object UUID is stored as path to imaginary zone file
-        self.entryUUID_prefix = "/var/lib/ipa/dns/zone/entryUUID/"
-        self.entryUUID_prefix_len = len(self.entryUUID_prefix)
         xml = etree.fromstring(zonelist_text)
         self._parse_zonelist(xml)
 
@@ -69,7 +69,7 @@ class ODSZoneListReader(ZoneListReader):
         """Extract zone name, input adapter and detect IPA zones.
 
         IPA zones have contains Adapters/Input/Adapter element with
-        attribute type = "File" and with value prefixed with entryUUID_prefix.
+        attribute type = "File" and with value prefixed with ENTRYUUID_PREFIX.
 
         Returns:
             tuple (zone name, ID)
@@ -77,13 +77,13 @@ class ODSZoneListReader(ZoneListReader):
         name = zone_xml.get('name')
         in_adapters = zone_xml.xpath(
             'Adapters/Input/Adapter[@type="File" '
-            'and starts-with(text(), "%s")]' % self.entryUUID_prefix)
+            'and starts-with(text(), "%s")]' % ENTRYUUID_PREFIX)
         assert len(in_adapters) == 1, 'only IPA zones are supported: %s' \
             % etree.tostring(zone_xml)
 
         path = in_adapters[0].text
         # strip prefix from path
-        zid = path[self.entryUUID_prefix_len:]
+        zid = path[ENTRYUUID_PREFIX_LEN:]
         return (name, zid)
 
 
@@ -106,20 +106,6 @@ class LDAPZoneListReader(ZoneListReader):
             self._del_zone(zone_ldap['idnsname'][0], uuid)
 
 
-def get_ods_zonelist(log):
-    cmd = ['ods-ksmutil', 'zonelist', 'export']
-    ksmutil = subprocess.Popen(
-        cmd, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    stdout, ignore = ksmutil.communicate()
-    if ksmutil.returncode != 0:
-        e = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
-        log.exception(e)
-        log.error("Command output: %s", stdout)
-        raise e
-
-    reader = ODSZoneListReader(stdout)
-    return reader
-
 
 class ODSMgr(object):
     """OpenDNSSEC zone manager. It does LDAP->ODS synchronization.
@@ -129,16 +115,79 @@ class ODSMgr(object):
     has to be solved seperatelly.
     """
     def __init__(self):
+        self.log = logging.getLogger(__name__)
         self.zl_ldap = LDAPZoneListReader()
+
+    def ksmutil(self, params):
+        """Call ods-ksmutil with given parameters and return stdout + stderr.
+
+        Raises CalledProcessError if returncode != 0.
+        """
+        cmd = ['ods-ksmutil'] + params
+        self.log.debug('Executing: %s', cmd)
+        ksmutil = subprocess.Popen(
+            cmd, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout, ignore = ksmutil.communicate()
+        if ksmutil.returncode != 0:
+            e = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
+            self.log.exception(e)
+            self.log.error("Command output: %s", stdout)
+            raise e
+        return stdout
+
+    def get_ods_zonelist(self):
+        stdout = self.ksmutil(['zonelist', 'export'])
+        reader = ODSZoneListReader(stdout)
+        return reader
+
+    def add_ods_zone(self, uuid, name):
+        zone_path = '%s%s' % (ENTRYUUID_PREFIX, uuid)
+        cmd = ['zone', 'add', '--zone', str(name), '--input', zone_path]
+        output = self.ksmutil(cmd)
+        self.log.info(output)
+        self.notify_enforcer()
+
+    def del_ods_zone(self, name):
+        # ods-ksmutil blows up if zone name has period at the end
+        name = name.relativize(dns.name.root)
+        cmd = ['zone', 'delete', '--zone', str(name)]
+        output = self.ksmutil(cmd)
+        self.log.info(output)
+        self.notify_enforcer()
+
+    def notify_enforcer(self):
+        cmd = ['notify']
+        output = self.ksmutil(cmd)
+        self.log.info(output)
 
     def ldap_event(self, op, uuid, attrs):
         """Process single LDAP event - zone addition or deletion."""
+        assert op == 'add' or op == 'del'
         self.zl_ldap.process_ipa_zone(op, uuid, attrs)
-        print self.zl_ldap.zones
-        #zl_ods = get_ods_zonelist()
+        self.log.debug("LDAP zones: %s", self.zl_ldap.mapping)
+        zl_ods = self.get_ods_zonelist()
+        self.log.debug("ODS zones: %s", zl_ods.mapping)
+        removed = self.diff_zl(zl_ods, self.zl_ldap)
+        self.log.debug("Zones removed from LDAP: %s", removed)
+        added = self.diff_zl(self.zl_ldap, zl_ods)
+        self.log.debug("Zones added to LDAP: %s", added)
+        for (uuid, name) in removed:
+            self.del_ods_zone(name)
+        for (uuid, name) in added:
+            self.add_ods_zone(uuid, name)
+
+    def diff_zl(self, s1, s2):
+        """Compute zones present in s1 but not present in s2.
+
+        Returns: List of (uuid, name) tuples with zones present only in s1."""
+        s1_extra = s1.uuids - s2.uuids
+        removed = [(uuid, name) for (uuid, name) in s1.mapping.items()
+                   if uuid in s1_extra]
+        return removed
+
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    reader = get_ods_zonelist(logging.getLogger('test'))
-    print reader.zones
+    reader = self.get_ods_zonelist(logging.getLogger('test'))
+    print reader.mapping

@@ -5,6 +5,8 @@ chown -cR ods: /var/{softhsm,opendnssec}
 chmod -cR o= /var/{softhsm,opendnssec}
 echo y | sudo -u ods -g ods ods-ksmutil setup
 
+# comment out <Signer> section in /etc/opendnssec/conf.xml
+
 # maybe this should be done in ipactl
 sudo systemctl enable ods-enforcerd.service
 sudo systemctl start  ods-enforcerd.service
