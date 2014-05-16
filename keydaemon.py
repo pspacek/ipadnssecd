@@ -7,7 +7,7 @@ import logging
 import signal
 import time
 
-from syncrepl import SyncReplConsumer
+from keysyncer import KeySyncer
 
 # Shutdown handler
 def commenceShutdown(signum, stack):
@@ -56,10 +56,10 @@ except ValueError, e:
     sys.exit(1)
 
 while watcher_running:
-    log.info('Connecting to LDAP server now...')
     # Prepare the LDAP server connection (triggers the connection as well)
-    ldap_connection = SyncReplConsumer(ldap_url.initializeUrl())
+    ldap_connection = KeySyncer(ldap_url.initializeUrl())
 
+    log.info('Connecting to LDAP server now...')
     # Now we login to the LDAP server
     try:
         ldap_connection.simple_bind_s(ldap_url.who, ldap_url.cred)
