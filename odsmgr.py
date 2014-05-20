@@ -5,6 +5,8 @@ from lxml import etree
 import dns.name
 import subprocess
 
+from ipapython import ipa_log_manager
+
 # hack: zone object UUID is stored as path to imaginary zone file
 ENTRYUUID_PREFIX = "/var/lib/ipa/dns/zone/entryUUID/"
 ENTRYUUID_PREFIX_LEN = len(ENTRYUUID_PREFIX)
@@ -15,6 +17,7 @@ class ZoneListReader(object):
         self.names = set()  # dns.name
         self.uuids = set()  # UUID strings
         self.mapping = dict()      # {UUID: dns.name}
+        self.log = ipa_log_manager.log_mgr.get_logger(self)
 
     def _add_zone(self, name, zid):
         """Add zone & UUID to internal structures.
@@ -55,7 +58,6 @@ class ODSZoneListReader(ZoneListReader):
     """One-shot parser for ODS zonelist.xml."""
     def __init__(self, zonelist_text):
         super(ODSZoneListReader, self).__init__()
-        self.log = logging.getLogger(__name__)
         xml = etree.fromstring(zonelist_text)
         self._parse_zonelist(xml)
 
@@ -91,7 +93,6 @@ class ODSZoneListReader(ZoneListReader):
 class LDAPZoneListReader(ZoneListReader):
     def __init__(self):
         super(LDAPZoneListReader, self).__init__()
-        self.log = logging.getLogger(__name__)
 
     def process_ipa_zone(self, op, uuid, zone_ldap):
         assert (op == 'add' or op == 'del'), 'unsupported op %s' % op
@@ -115,7 +116,7 @@ class ODSMgr(object):
     has to be solved seperatelly.
     """
     def __init__(self):
-        self.log = logging.getLogger(__name__)
+        self.log = ipa_log_manager.log_mgr.get_logger(self)
         self.zl_ldap = LDAPZoneListReader()
 
     def ksmutil(self, params):

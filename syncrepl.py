@@ -19,6 +19,7 @@ import time
 import sys
 import logging
 
+from ipapython import ipa_log_manager
 
 class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
     """
@@ -26,7 +27,7 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
     """
 
     def __init__(self, *args, **kwargs):
-        self.log = logging.getLogger("SyncReplConsumer")
+        self.log = ipa_log_manager.log_mgr.get_logger(self)
         # Initialise the LDAP Connection first
         ldap.ldapobject.ReconnectLDAPObject.__init__(self, *args, **kwargs)
         # Now prepare the data store

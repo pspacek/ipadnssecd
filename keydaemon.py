@@ -7,14 +7,26 @@ import logging
 import signal
 import time
 
+from ipalib import api
+from ipapython.dn import DN
+from ipapython.ipa_log_manager import root_logger, standard_logging_setup
+from ipapython import ipaldap
+from ipapython import ipautil
+from ipaserver.plugins.ldap2 import ldap2
+
 from keysyncer import KeySyncer
 
+DAEMONNAME = 'ipadnssecd'
+PRINCIPAL = None # not initialized yet
+CONFDIR = '/etc/ipa'
+WORKDIR = '/var/opendnssec/tmp'
+KEYTAB_FB = '%s/%s.keytab' % (CONFDIR, DAEMONNAME)
 
 # Shutdown handler
 def commenceShutdown(signum, stack):
     # Declare the needed global variables
     global watcher_running, ldap_connection, log
-    log.info('Shutting down!')
+    log.info('Signal %s received: Shutting down!', signum)
 
     # We are no longer running
     watcher_running = False
@@ -27,43 +39,43 @@ def commenceShutdown(signum, stack):
     # Shutdown
     sys.exit(0)
 
-# Time to actually begin execution
-log_format = '%(name)-16s %(levelname)-8s %(message)s'
-logging.basicConfig(level=logging.DEBUG, format=log_format)
-log = logging.getLogger("app")
 
 # Global state
 watcher_running = True
 ldap_connection = False
 
-# Install our signal handlers
+# Signal handlers
 signal.signal(signal.SIGTERM, commenceShutdown)
 signal.signal(signal.SIGINT, commenceShutdown)
 
-try:
-    ldap_url = ldapurl.LDAPUrl(sys.argv[1])
-except IndexError, e:
-    print 'Usage:'
-    print sys.argv[0], '<LDAP URL> <pathname of database>'
-    print sys.argv[0], '\'ldap://127.0.0.1/cn=users,dc=test'\
-                       '?*'\
-                       '?sub'\
-                       '?(objectClass=*)'\
-                       '?bindname=uid=admin%2ccn=users%2cdc=test,'\
-                       'X-BINDPW=password\''
-    sys.exit(1)
-except ValueError, e:
-    print 'Error parsing command-line arguments:', str(e)
-    sys.exit(1)
+# IPA framework initialization
+api.bootstrap()
+api.finalize()
+standard_logging_setup(verbose=True, debug=api.env.debug)
+log = root_logger
 
+# Kerberos initialization
+PRINCIPAL = str('%s/%s' % (DAEMONNAME, api.env.host))
+log.debug('Kerberos principal: %s', PRINCIPAL)
+ipautil.kinit_hostprincipal(KEYTAB_FB, WORKDIR, PRINCIPAL)
+
+# LDAP initialization
+basedn = DN(api.env.container_dns, api.env.basedn)
+ldap_url = ldapurl.LDAPUrl(api.env.ldap_uri)
+ldap_url.dn=str(basedn)
+ldap_url.scope=ldapurl.LDAP_SCOPE_SUBTREE
+ldap_url.filterstr='(objectClass=idnsZone)'
+log.debug('LDAP URL: %s', ldap_url.unparse())
+
+# Real work
 while watcher_running:
     # Prepare the LDAP server connection (triggers the connection as well)
     ldap_connection = KeySyncer(ldap_url.initializeUrl())
 
-    log.info('Connecting to LDAP server now...')
     # Now we login to the LDAP server
     try:
-        ldap_connection.simple_bind_s(ldap_url.who, ldap_url.cred)
+        log.info('LDAP bind...')
+        ldap_connection.sasl_interactive_bind_s("", ipaldap.SASL_GSSAPI)
     except ldap.INVALID_CREDENTIALS, e:
         log.exception('Login to LDAP server failed: %s', e)
         sys.exit(1)
@@ -75,24 +87,12 @@ while watcher_running:
     # Commence the syncing
     log.info('Commencing sync process')
     ldap_search = ldap_connection.syncrepl_search(
-        ldap_url.dn or '',
-        ldap_url.scope or ldap.SCOPE_SUBTREE,
+        ldap_url.dn,
+        ldap_url.scope,
         mode='refreshAndPersist',
         attrlist=ldap_url.attrs,
-        filterstr=ldap_url.filterstr or '(objectClass=*)'
+        filterstr=ldap_url.filterstr
     )
 
-    try:
-        while ldap_connection.syncrepl_poll(all=1, msgid=ldap_search):
-            pass
-    except KeyboardInterrupt:
-        # User asked to exit
-        commenceShutdown()
-        pass
-    except Exception, e:
-        # Handle any exception
-        if watcher_running:
-            log.error('Encountered a problem, going to retry. Error:')
-            log.exception(e)
-            time.sleep(5)
+    while ldap_connection.syncrepl_poll(all=1, msgid=ldap_search):
         pass
