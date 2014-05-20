@@ -170,9 +170,9 @@ class ODSMgr(object):
         zl_ods = self.get_ods_zonelist()
         self.log.debug("ODS zones: %s", zl_ods.mapping)
         removed = self.diff_zl(zl_ods, self.zl_ldap)
-        self.log.debug("Zones removed from LDAP: %s", removed)
+        self.log.info("Zones removed from LDAP: %s", removed)
         added = self.diff_zl(self.zl_ldap, zl_ods)
-        self.log.debug("Zones added to LDAP: %s", added)
+        self.log.info("Zones added to LDAP: %s", added)
         for (uuid, name) in removed:
             self.del_ods_zone(name)
         for (uuid, name) in added:
@@ -189,7 +189,7 @@ class ODSMgr(object):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
+    ipa_log_manager.standard_logging_setup(debug=True)
     ods = ODSMgr()
     reader = ods.get_ods_zonelist()
-    print reader.mapping
+    ipa_log_manager.root_logger.info('ODS zones: %s', reader.mapping)
