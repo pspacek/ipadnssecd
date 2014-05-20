@@ -17,10 +17,11 @@ from ipaserver.plugins.ldap2 import ldap2
 from keysyncer import KeySyncer
 
 DAEMONNAME = 'ipadnssecd'
-PRINCIPAL = None # not initialized yet
+PRINCIPAL = None  # not initialized yet
 CONFDIR = '/etc/ipa'
 WORKDIR = '/var/opendnssec/tmp'
 KEYTAB_FB = '%s/%s.keytab' % (CONFDIR, DAEMONNAME)
+
 
 # Shutdown handler
 def commenceShutdown(signum, stack):
@@ -62,9 +63,9 @@ ipautil.kinit_hostprincipal(KEYTAB_FB, WORKDIR, PRINCIPAL)
 # LDAP initialization
 basedn = DN(api.env.container_dns, api.env.basedn)
 ldap_url = ldapurl.LDAPUrl(api.env.ldap_uri)
-ldap_url.dn=str(basedn)
-ldap_url.scope=ldapurl.LDAP_SCOPE_SUBTREE
-ldap_url.filterstr='(objectClass=idnsZone)'
+ldap_url.dn = str(basedn)
+ldap_url.scope = ldapurl.LDAP_SCOPE_SUBTREE
+ldap_url.filterstr = '(objectClass=idnsZone)'
 log.debug('LDAP URL: %s', ldap_url.unparse())
 
 # Real work

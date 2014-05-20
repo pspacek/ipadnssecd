@@ -21,6 +21,7 @@ import logging
 
 from ipapython import ipa_log_manager
 
+
 class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
     """
     Syncrepl Consumer interface
@@ -117,5 +118,3 @@ class SyncReplConsumer(ReconnectLDAPObject, SyncreplConsumer):
         self.log.info('Performing application delete for: %s %s', dn, uuid)
         self.log.debug('Old attributes: %s', previous_attributes)
         return True
-
-
