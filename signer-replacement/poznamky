@@ -1,0 +1,4 @@
+enforcer/utils/ksmutil.c db_connect zamyka pres .our_lock
+ods-signer se vola s parametrem "update" nebo "update" "<jmeno zony>"
+
+podivej se na ODS_EN_NOTIFY
