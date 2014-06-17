@@ -1,8 +1,10 @@
 dnf install opendnssec -y
 
 # workarounds for packaging bugs in opendnssec-1.4.5-2.fc20.x86_64: https://bugzilla.redhat.com/show_bug.cgi?id=1098188
+chown -cR root:ods /etc/opendnssec
+chmod -cR ug+rw,o= /etc/opendnssec
 chown -cR ods: /var/{softhsm,opendnssec}
-chmod -cR o= /var/{softhsm,opendnssec}
+chmod -cR ug+rw,o= /var/{softhsm,opendnssec}
 echo y | sudo -u ods -g ods ods-ksmutil setup
 
 # comment out <Signer> section in /etc/opendnssec/conf.xml
@@ -11,7 +13,7 @@ echo y | sudo -u ods -g ods ods-ksmutil setup
 sudo systemctl enable ods-enforcerd.service
 sudo systemctl start  ods-enforcerd.service
 
-# IPA never wants signer
+# IPA never wants original signer
 sudo systemctl stop ods-signerd.service
 sudo systemctl disable ods-signerd.service
 sudo systemctl mask ods-signerd.service
