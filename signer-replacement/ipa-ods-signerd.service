@@ -1,0 +1,8 @@
+[Unit]
+Description=FreeIPA OpenDNSSEC Signer replacement
+
+[Service]
+ExecStart=/home/pspacek/ipa/keydaemon/signer-replacement/signerd.py
+
+[Install]
+WantedBy=multi-user.target

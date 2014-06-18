@@ -5,6 +5,7 @@ import ldap
 import ldapurl
 import logging
 import signal
+import systemd.journal
 import time
 
 from ipalib import api
@@ -54,6 +55,7 @@ api.bootstrap()
 api.finalize()
 standard_logging_setup(verbose=True, debug=api.env.debug)
 log = root_logger
+log.addHandler(systemd.journal.JournalHandler())
 
 # Kerberos initialization
 PRINCIPAL = str('%s/%s' % (DAEMONNAME, api.env.host))

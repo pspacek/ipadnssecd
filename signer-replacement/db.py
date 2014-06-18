@@ -9,6 +9,19 @@ import sys
 import systemd.journal
 import sqlite3
 
+from ipalib import api
+from ipapython.dn import DN
+from ipapython.ipa_log_manager import root_logger, standard_logging_setup
+from ipapython import ipaldap
+from ipapython import ipautil
+from ipaserver.plugins.ldap2 import ldap2
+
+DAEMONNAME = 'ipadnssecd'
+PRINCIPAL = None  # not initialized yet
+CONFDIR = '/etc/ipa'
+WORKDIR = '/var/opendnssec/tmp'
+KEYTAB_FB = '%s/%s.keytab' % (CONFDIR, DAEMONNAME)
+
 def sql2ldap_time(sql_time):
     dt = datetime.strptime(sql_time, "%Y-%m-%d %H:%M:%S")
     return "%sZ" % dt.strftime("%Y%m%d%H%M%S")
@@ -52,6 +65,37 @@ zoneid = rows[0][0]
 cur = db.execute("SELECT kp.HSMkey_id, kp.generate, kp.algorithm, dnsk.publish, dnsk.active, dnsk.retire, dnsk.dead, dnsk.keytype "
                  "FROM keypairs AS kp JOIN dnsseckeys AS dnsk ON kp.id = dnsk.id "
                  "WHERE dnsk.zone_id = ?", (zoneid,))
+
+# connect to LDAP
+
+# IPA framework initialization
+api.bootstrap()
+api.finalize()
+
+# Kerberos initialization
+PRINCIPAL = str('%s/%s' % (DAEMONNAME, api.env.host))
+log.debug('Kerberos principal: %s', PRINCIPAL)
+ipautil.kinit_hostprincipal(KEYTAB_FB, WORKDIR, PRINCIPAL)
+
+# LDAP initialization
+basedn = DN(api.env.container_dns, api.env.basedn)
+
+
+
+ldap = api.Backend[ldap2]
+ldap.connect(ccache="%s/ccache" % WORKDIR)
+
+ldap_zone_filter = ldap.make_filter_from_attr("idnsname", [zone_name, "%s." % zone_name])
+log.debug('LDAP search filter: "%s"', ldap_zone_filter)
+ldap_zone = ldap.find_entries(filter=ldap_zone_filter)
+assert len(ldap_zone) == 1
+print ldap_zone
+
+print ldap.get_entry(DN('idnsname=ipa.example.,cn=dns,dc=ipa,dc=example'))
+
+print ldap.conn.conn
+
+sys.exit(0)
 
 for row in cur:
     ldap = {}
