@@ -29,11 +29,33 @@ ODS_SE_MAXLINE = 1024  # from ODS common/config.h
 ODS_DB_PATH = '/var/opendnssec/kasp.db'
 ODS_DB_LOCK_PATH = '/var/opendnssec/kasp.db.our_lock'
 
-def sql2datetime(sql_time):
-    return datetime.strptime(sql_time, "%Y-%m-%d %H:%M:%S")
+# DNSKEY flag constants
+dnskey_flag_by_value = {
+    0x0001: 'SEP',
+    0x0080: 'REVOKE',
+    0x0100: 'ZONE'
+}
+
+def dnskey_flags_to_text_set(flags):
+    """Convert a DNSKEY flags value to set texts
+    @rtype: set([string])"""
+
+    flags_set = set()
+    mask = 0x1
+    while mask <= 0x8000:
+        if flags & mask:
+            text = dnskey_flag_by_value.get(mask)
+            if not text:
+                text = hex(mask)
+            flags_set.add(text)
+        mask <<= 1
+    return flags_set
 
 def datetime2ldap(dt):
     return "%sZ" % dt.strftime(ipalib.constants.LDAP_GENERALIZED_TIME_FORMAT)
+
+def sql2datetime(sql_time):
+    return datetime.strptime(sql_time, "%Y-%m-%d %H:%M:%S")
 
 def sql2datetimes(row):
     row2key_map = {'generate': 'idnsSecKeyCreated',
@@ -50,26 +72,13 @@ def sql2datetimes(row):
 def sql2ldap_algorithm(sql_algorithm):
     return {"idnsSecAlgorithm": dns.dnssec.algorithm_to_text(sql_algorithm)}
 
-def ksmutil(params):
-    """Call ods-ksmutil with given parameters and return stdout + stderr.
-
-    Raises CalledProcessError if returncode != 0.
-    """
-
-    global log
-
-    cmd = ['ods-ksmutil'] + params
-    log.debug('Executing: %s', cmd)
-    ksmutil = subprocess.Popen(
-        cmd, close_fds=True, stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT)
-    stdout, ignore = ksmutil.communicate()
-    if ksmutil.returncode != 0:
-        ex = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
-        log.exception(ex)
-        log.error("Command output: %s", stdout)
-        raise ex
-    return stdout
+def sql2ldap_flags(sql_flags):
+    dns_flags = dnskey_flags_to_text_set(sql_flags)
+    ldap_flags = {}
+    for flag in dns_flags:
+        attr = 'idnsSecKey%s' % flag
+        ldap_flags[attr] = 'TRUE'
+    return ldap_flags
 
 class ods_db_lock(object):
     def __enter__(self):
@@ -104,10 +113,8 @@ def get_ldap_keys_dn(zone_dn):
 
 def get_ldap_keys(ldap, zone_dn):
     """Keys objects"""
-    # find zone object: name can optionally end with period
     keys_dn = get_ldap_keys_dn(zone_dn)
     ldap_filter = ldap.make_filter_from_attr('objectClass', 'idnsSecKey')
-    ldap.conn.deref = 3
     ldap_keys = ldap.get_entries(base_dn=keys_dn, filter=ldap_filter)
 
     return ldap_keys
@@ -137,8 +144,19 @@ def get_ods_keys(zone_name):
                 and key_data['idnsSecKeyDelete'] > datetime.now():
                     continue  # ignore deleted keys
 
+            key_data.update(sql2ldap_flags(row['keytype']))
+            log.debug("%s", key_data)
+            assert key_data.get('idnsSecKeyZONE', None) == 'TRUE', \
+                    'unexpected key type 0x%x' % row['keytype']
+            if key_data.get('idnsSecKeySEP', 'FALSE') == 'TRUE':
+                key_type = 'KSK'
+            else:
+                key_type = 'ZSK'
+
             key_data.update(sql2ldap_algorithm(row['algorithm']))
-            key_id = "%s" % (row['HSMkey_id'])
+            key_id = "%s-%s-%s" % (key_type,
+                                   datetime2ldap(key_data['idnsSecKeyCreated']),
+                                   row['HSMkey_id'])
             keys[key_id] = key_data
 
         return keys
@@ -232,7 +250,9 @@ for key_id in new_keys_id:
     key_dn = DN(cn, keys_dn)
     log.debug('adding key "%s" to LDAP', key_dn)
     ldap_key = ldap.make_entry(key_dn,
-                               objectClass=['idnsSecKey'], idnsSecKeyRef='cn=FIXME', **ods_keys[key_id])
+                               objectClass=['idnsSecKey'],
+                               idnsSecKeyRef='cn=FIXME', # FIXME
+                               **ods_keys[key_id])
     ldap.add_entry(ldap_key)
 
 deleted_keys_id = ldap_keys_id - ods_keys_id
