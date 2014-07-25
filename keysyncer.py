@@ -12,6 +12,7 @@ SIGNING_ATTR = 'idnsSecInlineSigning'
 class KeySyncer(SyncReplConsumer):
     def __init__(self, *args, **kwargs):
         self.odsmgr = ODSMgr()
+        self.init_done = False
         SyncReplConsumer.__init__(self, *args, **kwargs)
 
     def __get_signing_attr(self, attrs):
@@ -30,10 +31,12 @@ class KeySyncer(SyncReplConsumer):
     def application_add(self, uuid, dn, newattrs):
         if self.__is_dnssec_enabled(newattrs):
             self.odsmgr.ldap_event('add', uuid, newattrs)
+        self.ods_sync()
 
     def application_del(self, uuid, dn, oldattrs):
         if self.__is_dnssec_enabled(oldattrs):
             self.odsmgr.ldap_event('del', uuid, oldattrs)
+        self.ods_sync()
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
         olddn = ldap.dn.str2dn(oldattrs['dn'])
@@ -47,3 +50,13 @@ class KeySyncer(SyncReplConsumer):
                 self.odsmgr.ldap_event('add', uuid, newattrs)
             else:
                 self.odsmgr.ldap_event('del', uuid, oldattrs)
+        self.ods_sync()
+
+    def syncrepl_refreshdone(self):
+        self.log.info('Initial LDAP dump is done, sychronizing with ODS')
+        self.init_done = True
+        self.odsmgr.sync()
+
+    def ods_sync(self):
+        if self.init_done:
+            self.odsmgr.sync()

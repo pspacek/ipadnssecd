@@ -163,10 +163,16 @@ class ODSMgr(object):
         self.log.info(output)
 
     def ldap_event(self, op, uuid, attrs):
-        """Process single LDAP event - zone addition or deletion."""
+        """Record single LDAP event - zone addition or deletion.
+
+        Change is only recorded to memory.
+        self.sync() have to be called to synchronize change to ODS."""
         assert op == 'add' or op == 'del'
         self.zl_ldap.process_ipa_zone(op, uuid, attrs)
         self.log.debug("LDAP zones: %s", self.zl_ldap.mapping)
+
+    def sync(self):
+        """Synchronize list of zones in LDAP with ODS."""
         zl_ods = self.get_ods_zonelist()
         self.log.debug("ODS zones: %s", zl_ods.mapping)
         removed = self.diff_zl(zl_ods, self.zl_ldap)
