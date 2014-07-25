@@ -1,0 +1,8 @@
+[Unit]
+Description=IPA key daemon
+
+[Service]
+ExecStart=/usr/share/ipa/ipadnssecd/keydaemon.py
+
+[Install]
+WantedBy=multi-user.target

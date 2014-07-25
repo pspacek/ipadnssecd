@@ -1,0 +1,8 @@
+[Unit]
+Description=IPA OpenDNSSEC Signer replacement
+
+[Service]
+ExecStart=/usr/share/ipa/ipadnssecd/signer-replacement/signerd.py
+
+[Install]
+WantedBy=multi-user.target

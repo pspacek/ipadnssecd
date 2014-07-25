@@ -4,6 +4,7 @@ from datetime import datetime
 import dns.dnssec
 
 import logging
+import os
 import subprocess
 import sys
 import systemd.journal
@@ -15,12 +16,13 @@ from ipapython.ipa_log_manager import root_logger, standard_logging_setup
 from ipapython import ipaldap
 from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
+from ipaplatform import paths
 
-DAEMONNAME = 'ipadnssecd'
+DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
 CONFDIR = '/etc/ipa'
-WORKDIR = '/var/opendnssec/tmp'
-KEYTAB_FB = '%s/%s.keytab' % (CONFDIR, DAEMONNAME)
+WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR, 'tmp')
+KEYTAB_FB = paths.IPA_ODS_EXPORTER_KEYTAB
 
 def sql2ldap_time(sql_time):
     dt = datetime.strptime(sql_time, "%Y-%m-%d %H:%M:%S")

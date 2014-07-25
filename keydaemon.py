@@ -17,7 +17,7 @@ from ipaserver.plugins.ldap2 import ldap2
 
 from keysyncer import KeySyncer
 
-DAEMONNAME = 'ipadnssecd'
+DAEMONNAME = 'ipa-dnskeysyncd'
 PRINCIPAL = None  # not initialized yet
 CONFDIR = '/etc/ipa'
 WORKDIR = '/var/opendnssec/tmp'
