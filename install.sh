@@ -3,7 +3,7 @@
 IPA_DIR="/usr/share/ipa"  #TODO find appropriate dir
 DAEMON_DIR="ipadnssecd"
 
-FILES="keydaemon.py keysyncer.py script.py syncrepl.py odsmgr.py signer-replacement/print_all.py signer-replacement/signerd.py"
+FILES="keydaemon.py keysyncer.py syncrepl.py odsmgr.py signer-replacement/signerd.py"
 
 mkdir "$IPA_DIR/$DAEMON_DIR"
 mkdir "$IPA_DIR/$DAEMON_DIR/signer-replacement"
