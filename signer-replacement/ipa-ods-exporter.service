@@ -1,5 +1,7 @@
 [Unit]
 Description=IPA OpenDNSSEC Signer replacement
+Wants=ipa-ods-exporter.socket
+After=ipa-ods-exporter.socket
 
 [Service]
 ExecStart=/usr/share/ipa/ipadnssecd/signer-replacement/signerd.py
