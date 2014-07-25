@@ -19,13 +19,12 @@ from ipapython.ipa_log_manager import root_logger, standard_logging_setup
 from ipapython import ipaldap
 from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
-from ipaplatform import paths
+from ipaplatform.paths import paths
 
 DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
-CONFDIR = '/etc/ipa'
-WORKDIR = os.path.join(paths.paths.OPENDNSSEC_VAR_DIR ,'tmp')
-KEYTAB_FB = paths.paths.IPA_ODS_EXPORTER_KEYTAB
+WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR ,'tmp')
+KEYTAB_FB = paths.IPA_ODS_EXPORTER_KEYTAB
 
 ODS_SE_MAXLINE = 1024  # from ODS common/config.h
 ODS_DB_PATH = '/var/opendnssec/kasp.db'

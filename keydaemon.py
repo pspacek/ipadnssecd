@@ -4,6 +4,7 @@ import sys
 import ldap
 import ldapurl
 import logging
+import os
 import signal
 import systemd.journal
 import time
@@ -14,14 +15,14 @@ from ipapython.ipa_log_manager import root_logger, standard_logging_setup
 from ipapython import ipaldap
 from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
+from ipaplatform.paths import paths
 
 from keysyncer import KeySyncer
 
 DAEMONNAME = 'ipa-dnskeysyncd'
 PRINCIPAL = None  # not initialized yet
-CONFDIR = '/etc/ipa'
-WORKDIR = '/var/opendnssec/tmp'
-KEYTAB_FB = '%s/%s.keytab' % (CONFDIR, DAEMONNAME)
+WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR ,'tmp')
+KEYTAB_FB = paths.IPA_DNSKEYSYNCD_KEYTAB
 
 
 # Shutdown handler
