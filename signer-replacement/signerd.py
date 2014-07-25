@@ -82,6 +82,13 @@ def sql2ldap_flags(sql_flags):
         ldap_flags[attr] = 'TRUE'
     return ldap_flags
 
+def sql2ldap_keyid(sql_keyid):
+    assert len(sql_keyid) % 2 == 0
+    assert len(sql_keyid) > 0
+    uri = "pkcs11:id=%"
+    uri += '%'.join(sql_keyid[i:i+2] for i in range(0, len(sql_keyid), 2))
+    return {"idnsSecKeyRef": uri}
+
 class ods_db_lock(object):
     def __enter__(self):
         self.f = open(ODS_DB_LOCK_PATH, 'w')
@@ -159,6 +166,8 @@ def get_ods_keys(zone_name):
             key_id = "%s-%s-%s" % (key_type,
                                    datetime2ldap(key_data['idnsSecKeyCreated']),
                                    row['HSMkey_id'])
+
+            key_data.update(sql2ldap_keyid(row['HSMkey_id']))
             keys[key_id] = key_data
 
         return keys
@@ -253,7 +262,6 @@ for key_id in new_keys_id:
     log.debug('adding key "%s" to LDAP', key_dn)
     ldap_key = ldap.make_entry(key_dn,
                                objectClass=['idnsSecKey'],
-                               idnsSecKeyRef='cn=FIXME', # FIXME
                                **ods_keys[key_id])
     ldap.add_entry(ldap_key)
 
