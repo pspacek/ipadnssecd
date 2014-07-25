@@ -54,7 +54,7 @@ def dnskey_flags_to_text_set(flags):
     return flags_set
 
 def datetime2ldap(dt):
-    return "%sZ" % dt.strftime(ipalib.constants.LDAP_GENERALIZED_TIME_FORMAT)
+    return dt.strftime(ipalib.constants.LDAP_GENERALIZED_TIME_FORMAT)
 
 def sql2datetime(sql_time):
     return datetime.strptime(sql_time, "%Y-%m-%d %H:%M:%S")
