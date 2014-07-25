@@ -241,7 +241,7 @@ except ipalib.errors.NotFound:
     try:
         ldap.add_entry(ldap_keys_container)
     except ipalib.errors.DuplicateEntry:
-        # ldap.get_entries() do not distinguish non-existent base DN
+        # ldap.get_entries() does not distinguish non-existent base DN
         # from empty result set so addition can fail because container
         # itself exists already
         pass
