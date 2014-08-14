@@ -68,13 +68,13 @@ basedn = DN(api.env.container_dns, api.env.basedn)
 ldap_url = ldapurl.LDAPUrl(api.env.ldap_uri)
 ldap_url.dn = str(basedn)
 ldap_url.scope = ldapurl.LDAP_SCOPE_SUBTREE
-ldap_url.filterstr = '(objectClass=idnsZone)'
+ldap_url.filterstr = '(|(objectClass=idnsZone)(objectClass=idnsSecKey))'
 log.debug('LDAP URL: %s', ldap_url.unparse())
 
 # Real work
 while watcher_running:
     # Prepare the LDAP server connection (triggers the connection as well)
-    ldap_connection = KeySyncer(ldap_url.initializeUrl())
+    ldap_connection = KeySyncer(ldap_url.initializeUrl(), ipa_api=api)
 
     # Now we login to the LDAP server
     try:
