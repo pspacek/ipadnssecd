@@ -84,8 +84,10 @@ def sql2ldap_flags(sql_flags):
 def sql2ldap_keyid(sql_keyid):
     assert len(sql_keyid) % 2 == 0
     assert len(sql_keyid) > 0
-    uri = "pkcs11:id=%"
-    uri += '%'.join(sql_keyid[i:i+2] for i in range(0, len(sql_keyid), 2))
+    # TODO: this is huge hack. BIND has some problems with % notation in URIs.
+    # Workaround: OpenDNSSEC uses same value for ID also for label (but in hex).
+    uri = "pkcs11:object=%s" % sql_keyid
+    #uri += '%'.join(sql_keyid[i:i+2] for i in range(0, len(sql_keyid), 2))
     return {"idnsSecKeyRef": uri}
 
 class ods_db_lock(object):
