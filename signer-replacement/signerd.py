@@ -199,6 +199,7 @@ log.info('processing command: "%s"', cmd)
 # the DB.
 conn.send('Request queued\n')
 conn.shutdown(socket.SHUT_RDWR)
+conn.close()
 
 # ODS stores zone name without trailing period
 zone_name = cmd[7:].strip()
