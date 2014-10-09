@@ -21,9 +21,8 @@ from keysyncer import KeySyncer
 
 DAEMONNAME = 'ipa-dnskeysyncd'
 PRINCIPAL = None  # not initialized yet
-WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR ,'tmp')
+WORKDIR = '/tmp' # private temp
 KEYTAB_FB = paths.IPA_DNSKEYSYNCD_KEYTAB
-
 
 # Shutdown handler
 def commenceShutdown(signum, stack):
@@ -43,6 +42,8 @@ def commenceShutdown(signum, stack):
     sys.exit(0)
 
 
+os.umask(007)
+
 # Global state
 watcher_running = True
 ldap_connection = False
@@ -56,7 +57,7 @@ api.bootstrap()
 api.finalize()
 standard_logging_setup(verbose=True, debug=api.env.debug)
 log = root_logger
-log.addHandler(systemd.journal.JournalHandler())
+#log.addHandler(systemd.journal.JournalHandler())
 
 # Kerberos initialization
 PRINCIPAL = str('%s/%s' % (DAEMONNAME, api.env.host))

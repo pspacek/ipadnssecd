@@ -3,6 +3,10 @@ Description=IPA key daemon
 
 [Service]
 ExecStart=/usr/share/ipa/ipadnssecd/keydaemon.py
+User=ods
+Group=named
+SupplementaryGroups=ods
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target

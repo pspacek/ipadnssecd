@@ -5,6 +5,7 @@ After=ipa-ods-exporter.socket
 
 [Service]
 ExecStart=/usr/share/ipa/ipadnssecd/signer-replacement/signerd.py
+User=ods
 
 [Install]
 WantedBy=multi-user.target

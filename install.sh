@@ -5,15 +5,14 @@ DAEMON_DIR="ipadnssecd"
 
 FILES="keydaemon.py keysyncer.py syncrepl.py odsmgr.py signer-replacement/signerd.py bindmgr.py temp.py"
 
-mkdir -p "$IPA_DIR/$DAEMON_DIR"
 mkdir -p "$IPA_DIR/$DAEMON_DIR/signer-replacement"
 
 for file in $FILES
 do
-	cp $file "$IPA_DIR/$DAEMON_DIR/$file"
+	ln -s "$(pwd)/$file" "$IPA_DIR/$DAEMON_DIR/$file"
 done
 
-cp ipa-dnskeysyncd.service /etc/systemd/system/ipa-dnskeysyncd.service
-cp signer-replacement/ipa-ods-exporter.service /etc/systemd/system/ipa-ods-exporter.service
-cp signer-replacement/ipa-ods-exporter.socket /etc/systemd/system/ipa-ods-exporter.socket
+ln -s "$(pwd)/ipa-dnskeysyncd.service" /etc/systemd/system/ipa-dnskeysyncd.service
+ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.service" /etc/systemd/system/ipa-ods-exporter.service 
+ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.socket" /etc/systemd/system/ipa-ods-exporter.socket 
 systemctl daemon-reload
