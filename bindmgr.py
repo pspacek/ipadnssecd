@@ -6,18 +6,25 @@ import errno
 import os
 import logging
 import shutil
+import stat
 import subprocess
 
 from ipalib import api
 import ipalib.constants
 from ipapython.dn import DN
 from ipapython import ipa_log_manager
+from ipaplatform.paths import paths
 
 from temp import TemporaryDirectory
 
 # TODO
 zone_dir_template = '/var/named/dyndb-ldap/ipa/master/%s'
 time_bindfmt = '%Y%m%d%H%M%S'
+
+# this daemon should run under ods:named user:group
+# user has to be ods because ODSMgr.py sends signal to ods-enforcerd
+FILE_PERM = (stat.S_IRUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IWUSR)
+DIR_PERM = (stat.S_IRWXU | stat.S_IRWXG)
 
 class BINDMgr(object):
     """BIND key manager. It does LDAP->BIND key files synchronization.
@@ -100,6 +107,7 @@ class BINDMgr(object):
         """Run dnssec-keyfromlabel on given LDAP object.
         
         :returns: base file name of output files, e.g. Kaaa.test.+008+19719"""
+        self.log.info('attrs: %s', attrs)
         assert attrs.get('idnsseckeyzone', ['FALSE'])[0] == 'TRUE', \
             'object %s is not a DNS zone key' % attrs['dn']
 
@@ -112,8 +120,11 @@ class BINDMgr(object):
         if attrs.get('idnsSecKeyRevoke', ['FALSE'])[0].upper() == 'TRUE':
             cmd += ['-R', datetime.now().strftime(time_bindfmt)]
         cmd.append(zone.to_text())
-        # TODO: file permissions
+
+        # keys has to be readable by ODS & named
         basename = self.util(cmd).strip()
+        private_fn = "%s/%s.private" % (workdir, basename)
+        os.chmod(private_fn, FILE_PERM)
         # this is useful mainly for debugging
         with open("%s/%s.uuid" % (workdir, basename), 'w') as uuid_file:
             uuid_file.write(uuid)
@@ -125,17 +136,36 @@ class BINDMgr(object):
         self.log.info('Synchronizing zone %s' % zone)
         zone_path = zone_dir_template % zone.to_text(omit_final_dot=True)
         try:
-            os.makedirs(zone_path, mode=700)
+            os.makedirs(zone_path)
         except OSError as e:
             if e.errno != errno.EEXIST:
                 raise e
+
+        # fix HSM permissions
+        # TODO: move out
+        for prefix, dirs, files in os.walk(paths.SOFTHSM_TOKENS_DIR, topdown=True):
+            for name in files:
+                os.chmod(os.path.join(prefix, name), FILE_PERM)
+            for name in dirs:
+                os.chmod(os.path.join(prefix, name), DIR_PERM | stat.S_ISGID)
+        # TODO: move out
 
         with TemporaryDirectory(zone_path) as tempdir:
             for uuid, attrs in self.ldap_keys[zone].items():
                 self.install_key(zone, uuid, attrs, tempdir)
             # keys were generated in a temporary directory, swap directories
-            shutil.rmtree("%s/keys" % zone_path)
-            shutil.move(tempdir, "%s/keys" % zone_path)
+            target_dir = "%s/keys" % zone_path
+            try:
+                shutil.rmtree(target_dir)
+            except OSError as e:
+                if e.errno != errno.ENOENT:
+                    raise e
+            shutil.move(tempdir, target_dir)
+            os.chmod(target_dir, DIR_PERM)
+
+        # TODO: path
+        cmd = ['rndc', 'loadkeys', zone.to_text()]
+        self.log.info(self.util(cmd).strip())
 
             
     def sync(self):
