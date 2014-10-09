@@ -16,7 +16,7 @@ from ipapython import ipa_log_manager
 from temp import TemporaryDirectory
 
 # TODO
-zone_dir_template = '/var/named/dyndb-ldap/ipa/%s'
+zone_dir_template = '/var/named/dyndb-ldap/ipa/master/%s'
 time_bindfmt = '%Y%m%d%H%M%S'
 
 class BINDMgr(object):
