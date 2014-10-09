@@ -103,9 +103,9 @@ class BINDMgr(object):
         assert attrs.get('idnsseckeyzone', ['FALSE'])[0] == 'TRUE', \
             'object %s is not a DNS zone key' % attrs['dn']
 
-        # TODO: PIN file path
-        uri = "%s;pin-source=/tmp/pin" % attrs['idnsSecKeyRef'][0]
-        cmd = ['dnssec-keyfromlabel', '-K', workdir, '-a', attrs['idnsSecAlgorithm'][0], '-l', uri]
+        uri = "%s;pin-source=%s" % (attrs['idnsSecKeyRef'][0], paths.SOFTHSM_PIN)
+        # TODO: path?
+        cmd = ['dnssec-keyfromlabel-pkcs11', '-K', workdir, '-a', attrs['idnsSecAlgorithm'][0], '-l', uri]
         cmd += self.dates2params(attrs)
         if attrs.get('idnsSecKeySep', ['FALSE'])[0].upper() == 'TRUE':
             cmd += ['-f', 'KSK']
