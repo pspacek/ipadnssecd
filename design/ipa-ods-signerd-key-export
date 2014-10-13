@@ -1,0 +1,21 @@
+ipa-ods-signed:
+
+Synchronizes PKCS#11 keys from local HSM to LDAP. It is done in three stages:
+
+1) replica keys
+- download (from LDAP) and import new public keys with CKA_WRAP = TRUE
+- delete keys removed from LDAP from local HSM (optional for now?)
+- synchronize attributes for existing keys (matching IDs)
+
+2) master key
+a)if a replica key was deleted:
+-- set CKA_WRAP = FALSE on old replica keys
+-- generate new master key
+-- wrap new master key using public keys of all active replicas
+-- set CKA_WRAP = FALSE on old master key
+
+b)if a new replica key was added:
+-- wrap existing master key with the new replica public key
+
+3) DNSSEC keys
+- wrap DNSSEC keys using latest master key (CKA_WRAP = TRUE)

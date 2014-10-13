@@ -21,6 +21,8 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
+from ldaphsm import LDAPHSM
+
 DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
 WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR ,'tmp')
@@ -221,13 +223,21 @@ ipalib.api.finalize()
 PRINCIPAL = str('%s/%s' % (DAEMONNAME, ipalib.api.env.host))
 log.debug('Kerberos principal: %s', PRINCIPAL)
 ipautil.kinit_hostprincipal(KEYTAB_FB, WORKDIR, PRINCIPAL)
+log.debug('Got TGT')
 
 # LDAP initialization
 dns_dn = DN(ipalib.api.env.container_dns, ipalib.api.env.basedn)
 
 ldap = ipalib.api.Backend[ldap2]
 # fixme
+log.debug('Connecting to LDAP')
 ldap.connect(ccache="%s/ccache" % WORKDIR)
+log.debug('Connected')
+
+l = LDAPHSM(ldap, DN("cn=keys", "cn=sec", dns_dn))
+print l.replica_pubkeys
+
+#sys.exit(0)
 
 ldap_zone = get_ldap_zone(ldap, dns_dn, zone_name)
 zone_dn = ldap_zone.dn
