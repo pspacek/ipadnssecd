@@ -21,7 +21,9 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
+from abshsm import sync_pkcs11_metadata
 from ldaphsm import LDAPHSM
+from localhsm import LocalHSM
 
 DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
@@ -234,9 +236,37 @@ log.debug('Connecting to LDAP')
 ldap.connect(ccache="%s/ccache" % WORKDIR)
 log.debug('Connected')
 
-l = LDAPHSM(ldap, DN("cn=keys", "cn=sec", dns_dn))
-print l.replica_pubkeys
 
+## master->LDAP synchronization
+ldaphsm = LDAPHSM(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
+log.debug("replica pub keys in LDAP: %s", ldaphsm.replica_pubkeys)
+localhsm = LocalHSM('/usr/lib64/pkcs11/libsofthsm2.so', 0, open('/var/lib/ipa/dnssec/softhsm_pin').read())
+log.debug("replica pub keys in SoftHSM: %s", localhsm.replica_pubkeys)
+
+# import new replica keys from LDAP
+new_replica_keys = set(ldaphsm.replica_pubkeys.keys()) \
+        - set(localhsm.replica_pubkeys.keys())
+log.info("new replica keys in LDAP: %s", new_replica_keys)
+for key_id in new_replica_keys:
+    new_key = ldaphsm.replica_pubkeys[key_id]
+    localhsm.p11.import_public_key(label=new_key.single_value['ipk11label'],
+            id=new_key.single_value['ipk11id'],
+            data=new_key.single_value['ipapublickey'], cka_wrap=True)
+
+# set CKA_WRAP = FALSE for all replica keys removed from LDAP
+removed_replica_keys = set(localhsm.replica_pubkeys.keys()) \
+        - set(ldaphsm.replica_pubkeys.keys())
+log.info("obsolete replica keys in local HSM: %s", removed_replica_keys)
+for key_id in removed_replica_keys:
+    localhsm.replica_pubkeys[key_id]['ipk11wrap'] = False
+
+# synchronize replica key attributes from LDAP to local HSM
+existing_replica_keys = set(localhsm.replica_pubkeys.keys()).intersection(
+        set(ldaphsm.replica_pubkeys.keys()))
+log.info("replica keys in local HSM & LDAP: %s", existing_replica_keys)
+for key_id in existing_replica_keys:
+    sync_pkcs11_metadata(ldaphsm.replica_pubkeys[key_id],
+            localhsm.replica_pubkeys[key_id])
 #sys.exit(0)
 
 ldap_zone = get_ldap_zone(ldap, dns_dn, zone_name)

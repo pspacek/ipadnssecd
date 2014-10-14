@@ -1,52 +1,15 @@
 #!/usr/bin/python
 
 import binascii
+import collections
 from pprint import pprint
 import sys
 import time
 
 import ipapkcs11
+from abshsm import attrs_name2id, attrs_id2name
 
-attrs_id2name = {
-    #ipapkcs11.CKA_ALLOWED_MECHANISMS: 'ipk11allowedmechanisms',
-    ipapkcs11.CKA_ALWAYS_AUTHENTICATE: 'ipk11alwaysauthenticate',
-    ipapkcs11.CKA_ALWAYS_SENSITIVE: 'ipk11alwayssensitive',
-    #ipapkcs11.CKA_CHECK_VALUE: 'ipk11checkvalue',
-    ipapkcs11.CKA_COPYABLE: 'ipk11copyable',
-    ipapkcs11.CKA_DECRYPT: 'ipk11decrypt',
-    ipapkcs11.CKA_DERIVE: 'ipk11derive',
-    #ipapkcs11.CKA_DESTROYABLE: 'ipk11destroyable',
-    ipapkcs11.CKA_ENCRYPT: 'ipk11encrypt',
-    #ipapkcs11.CKA_END_DATE: 'ipk11enddate',
-    ipapkcs11.CKA_EXTRACTABLE: 'ipk11extractable',
-    ipapkcs11.CKA_ID: 'ipk11id',
-    #ipapkcs11.CKA_KEY_GEN_MECHANISM: 'ipk11keygenmechanism',
-    #ipapkcs11.CKA_KEY_TYPE: 'ipk11keytype',
-    ipapkcs11.CKA_LABEL: 'ipk11label',
-    ipapkcs11.CKA_LOCAL: 'ipk11local',
-    ipapkcs11.CKA_MODIFIABLE: 'ipk11modifiable',
-    ipapkcs11.CKA_NEVER_EXTRACTABLE: 'ipk11neverextractable',
-    ipapkcs11.CKA_PRIVATE: 'ipk11private',
-    #ipapkcs11.CKA_PUBLIC_KEY_INFO: 'ipapublickey',
-    #ipapkcs11.CKA_PUBLIC_KEY_INFO: 'ipk11publickeyinfo',
-    ipapkcs11.CKA_SENSITIVE: 'ipk11sensitive',
-    ipapkcs11.CKA_SIGN: 'ipk11sign',
-    ipapkcs11.CKA_SIGN_RECOVER: 'ipk11signrecover',
-    #ipapkcs11.CKA_START_DATE: 'ipk11startdate',
-    #ipapkcs11.CKA_SUBJECT: 'ipk11subject',
-    ipapkcs11.CKA_TRUSTED: 'ipk11trusted',
-    ipapkcs11.CKA_UNWRAP: 'ipk11unwrap',
-    #ipapkcs11.CKA_UNWRAP_TEMPLATE: 'ipk11unwraptemplate',
-    ipapkcs11.CKA_VERIFY: 'ipk11verify',
-    ipapkcs11.CKA_VERIFY_RECOVER: 'ipk11verifyrecover',
-    ipapkcs11.CKA_WRAP: 'ipk11wrap',
-    #ipapkcs11.CKA_WRAP_TEMPLATE: 'ipk11wraptemplate',
-    ipapkcs11.CKA_WRAP_WITH_TRUSTED: 'ipk11wrapwithtrusted',
-}
-
-attrs_name2id = dict(zip(attrs_id2name.values(), attrs_id2name.keys()))
-
-class Key(object):
+class Key(collections.MutableMapping):
     def __init__(self, p11, handle):
         self.p11 = p11
         self.handle = handle
@@ -71,20 +34,24 @@ class Key(object):
     def __setitem__(self, key, value):
         return self.p11.set_attribute(self.handle, attrs_name2id[key], value)
 
-    def iteritems(self):
-        for pkcs11_id, ipa_name in attrs_id2name.iteritems():
-            try:
-                value = self.p11.get_attribute(self.handle, pkcs11_id)
-            except ipapkcs11.NotFound:
-                continue
-
-            yield (ipa_name, value)
-
-        raise StopIteration()
+    def __delitem__(self, key):
+        raise ipapkcs11.Exception('__delitem__ is not supported')
 
     def __iter__(self):
         """generates list of ipa names of all attributes present in the object"""
-        return self.iteritems()
+        for pkcs11_id, ipa_name in attrs_id2name.iteritems():
+            try:
+                self.p11.get_attribute(self.handle, pkcs11_id)
+            except ipapkcs11.NotFound:
+                continue
+
+            yield ipa_name
+
+    def __len__(self):
+        cnt = 0
+        for attr in self:
+            cnt += 1
+        return cnt
 
     def __str__(self):
         d = {}
@@ -92,7 +59,7 @@ class Key(object):
             d[ipa_name] = value
 
         return str(d)
-    
+
     def __repr__(self):
         return self.__str__()
 
