@@ -90,3 +90,9 @@ def sync_pkcs11_metadata(source, target):
         if attr in source:
             target[attr] = source[attr]
 
+def populate_pkcs11_metadata(source, target):
+    """populate all ipk11 metadata attributes in target object from source object"""
+    for attr in attrs_name2id:
+        if attr in source:
+            target[attr] = source[attr]
+

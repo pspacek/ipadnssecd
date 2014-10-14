@@ -29,7 +29,10 @@ class Key(collections.MutableMapping):
                     % binascii.hexlify(cka_id))
 
     def __getitem__(self, key):
-        return self.p11.get_attribute(self.handle, attrs_name2id[key])
+        try:
+            return self.p11.get_attribute(self.handle, attrs_name2id[key])
+        except ipapkcs11.NotFound:
+            raise KeyError()
 
     def __setitem__(self, key, value):
         return self.p11.set_attribute(self.handle, attrs_name2id[key], value)
@@ -95,6 +98,21 @@ class LocalHSM(object):
                         str(key['ipk11label']), prefix)
 
         return keys
+
+    @property
+    def master_keys(self):
+        """Get all usable DNSSEC master keys"""
+        keys = self._get_keys_dict(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u'dnssec-master', cka_unwrap=True)
+
+        for key in keys.itervalues():
+            prefix = 'dnssec-master'
+            assert key['ipk11label'] == prefix, \
+                'secret key ipk11id=0x%s ipk11label="%s" with ipk11UnWrap = TRUE does not have '\
+                '"%s" key label' % (binascii.hexlify(key['ipk11id']),
+                        str(key['ipk11label']), prefix)
+
+        return keys
+
 
 if __name__ == '__main__':
     print 'test'
