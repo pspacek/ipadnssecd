@@ -12,7 +12,7 @@ do
 	ln -s "$(pwd)/$file" "$IPA_DIR/$DAEMON_DIR/$file"
 done
 
-ln -s "$(pwd)/ipa-dnskeysyncd.service" /etc/systemd/system/ipa-dnskeysyncd.service
-ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.service" /etc/systemd/system/ipa-ods-exporter.service 
+ln -s "$(pwd)/ipa-dnskeysyncd.service" /lib/systemd/system/ipa-dnskeysyncd.service
+ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.service" /lib/systemd/system/ipa-ods-exporter.service 
 ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.socket" /etc/systemd/system/ipa-ods-exporter.socket 
 systemctl daemon-reload
