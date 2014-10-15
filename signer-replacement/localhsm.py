@@ -75,20 +75,21 @@ class LocalHSM(object):
     def __del__(self):
         self.p11.finalize()
 
-    def _get_keys_dict(self, *args, **kwargs):
+    def find_keys(self, *args, **kwargs):
         handles = self.p11.find_keys(*args, **kwargs)
         keys = {}
         for h in handles:
             key = Key(self.p11, h)
             o_id = key['ipk11id']
-            assert o_id not in keys, 'duplicate ipk11Id=0x%s' % binascii.hexlify(o_id)
+            assert o_id not in keys, 'duplicate ipk11Id = 0x%s; keys = %s' % (
+                    binascii.hexlify(o_id), keys)
             keys[o_id] = key
 
         return keys
 
     @property
     def replica_pubkeys(self):
-        keys = self._get_keys_dict(ipapkcs11.KEY_CLASS_PUBLIC_KEY, cka_wrap=True)
+        keys = self.find_keys(ipapkcs11.KEY_CLASS_PUBLIC_KEY, cka_wrap=True)
 
         for key in keys.itervalues():
             prefix = 'dnssec-replica:'
@@ -102,7 +103,7 @@ class LocalHSM(object):
     @property
     def master_keys(self):
         """Get all usable DNSSEC master keys"""
-        keys = self._get_keys_dict(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u'dnssec-master', cka_unwrap=True)
+        keys = self.find_keys(ipapkcs11.KEY_CLASS_SECRET_KEY, label=u'dnssec-master', cka_unwrap=True)
 
         for key in keys.itervalues():
             prefix = 'dnssec-master'
