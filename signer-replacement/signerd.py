@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import binascii
+from binascii import hexlify
 from datetime import datetime
 import dns.dnssec
 import fcntl
@@ -182,39 +182,40 @@ def get_ods_keys(zone_name):
 def ldap2master_replica_keys_sync(log, ldaphsm, localhsm):
     """LDAP=>master's local HSM replica key synchronization"""
     # import new replica keys from LDAP
-    log.debug("replica pub keys in LDAP: %s", hex_set(ldaphsm.replica_pubkeys))
-    log.debug("replica pub keys in SoftHSM: %s", hex_set(localhsm.replica_pubkeys))
-    new_replica_keys = set(ldaphsm.replica_pubkeys.keys()) \
-            - set(localhsm.replica_pubkeys.keys())
+    log.debug("replica pub keys in LDAP: %s", hex_set(ldaphsm.replica_pubkeys_wrap))
+    log.debug("replica pub keys in SoftHSM: %s", hex_set(localhsm.replica_pubkeys_wrap))
+    new_replica_keys = set(ldaphsm.replica_pubkeys_wrap.keys()) \
+            - set(localhsm.replica_pubkeys_wrap.keys())
     log.info("new replica keys in LDAP: %s", hex_set(new_replica_keys))
     for key_id in new_replica_keys:
-        new_key = ldaphsm.replica_pubkeys[key_id]
-        log.error('label=%s,  id=%s, data=%s', new_key['ipk11label'], new_key['ipk11id'], new_key['ipapublickey'])
-        localhsm.p11.import_public_key(label=new_key['ipk11label'],
-                id=new_key['ipk11id'],
-                data=new_key['ipapublickey'], cka_wrap=True)
+        new_key_ldap = ldaphsm.replica_pubkeys_wrap[key_id]
+        log.error('label=%s,  id=%s, data=%s',
+                new_key_ldap['ipk11label'],
+                hexlify(new_key_ldap['ipk11id']),
+                hexlify(new_key_ldap['ipapublickey']))
+        localhsm.import_public_key(new_key_ldap, new_key_ldap['ipapublickey'])
 
     # set CKA_WRAP = FALSE for all replica keys removed from LDAP
-    removed_replica_keys = set(localhsm.replica_pubkeys.keys()) \
-            - set(ldaphsm.replica_pubkeys.keys())
+    removed_replica_keys = set(localhsm.replica_pubkeys_wrap.keys()) \
+            - set(ldaphsm.replica_pubkeys_wrap.keys())
     log.info("obsolete replica keys in local HSM: %s",
             hex_set(removed_replica_keys))
     for key_id in removed_replica_keys:
-        localhsm.replica_pubkeys[key_id]['ipk11wrap'] = False
+        localhsm.replica_pubkeys_wrap[key_id]['ipk11wrap'] = False
 
     # synchronize replica key attributes from LDAP to local HSM
-    existing_replica_keys = set(localhsm.replica_pubkeys.keys()).intersection(
-            set(ldaphsm.replica_pubkeys.keys()))
+    existing_replica_keys = set(localhsm.replica_pubkeys_wrap.keys()).intersection(
+            set(ldaphsm.replica_pubkeys_wrap.keys()))
     log.info("replica keys in local HSM & LDAP: %s",
             hex_set(existing_replica_keys))
     for key_id in existing_replica_keys:
-        sync_pkcs11_metadata(ldaphsm.replica_pubkeys[key_id],
-                localhsm.replica_pubkeys[key_id])
+        sync_pkcs11_metadata(ldaphsm.replica_pubkeys_wrap[key_id],
+                localhsm.replica_pubkeys_wrap[key_id])
 
 def hex_set(s):
     out = set()
     for i in s:
-        out.add(binascii.hexlify(i))
+        out.add(hexlify(i))
     return out
 
 
@@ -296,12 +297,14 @@ for mkey_id in new_master_keys:
 
 ldaphsm.flush()
 # get all master keys in LDAP
+log.error('master keys in LDAP after flush: %s', ldaphsm.master_keys)
 for mkey_id, mkey_ldap in ldaphsm.master_keys.iteritems():
+    log.error('processing master key: %s', hexlify(mkey_id))
     # check that all active replicas have own copy of master key
-    enabled_replica_key_ids = set(localhsm.replica_pubkeys.keys())
+    enabled_replica_key_ids = set(localhsm.replica_pubkeys_wrap.keys())
     log.debug('enabled replica key ids: %s', enabled_replica_key_ids)
     used_replica_keys = set()
-    for wrapped_entry in mkey_ldap.wrapped_data:
+    for wrapped_entry in mkey_ldap.wrapped_entries:
         matching_keys = localhsm.find_keys(
                 uri=wrapped_entry.single_value['ipaWrappingKey'])
         for matching_key in matching_keys.itervalues():
@@ -315,39 +318,21 @@ for mkey_id, mkey_ldap in ldaphsm.master_keys.iteritems():
 
     new_replica_keys = enabled_replica_key_ids - used_replica_keys
     log.debug('master key 0x%s is not wrapped with replica key ids %s',
-            binascii.hexlify(mkey_id), hex_set(new_replica_keys))
+            hexlify(mkey_id), hex_set(new_replica_keys))
 
     mkey_local = localhsm.find_keys(id=mkey_id).popitem()[1]
     # wrap master key with new replica keys
     for replica_key_id in new_replica_keys:
-        replica_key = localhsm.replica_pubkeys[replica_key_id]
+        log.error('adding mkey for replica key %s' % hexlify(replica_key_id))
+        replica_key = localhsm.replica_pubkeys_wrap[replica_key_id]
         keydata = localhsm.p11.export_wrapped_key(mkey_local.handle,
                 replica_key.handle, ipapkcs11.MECH_RSA_PKCS)
-        mkey_ldap.add_wrapped_data(keydata)
+        mkey_ldap.add_wrapped_data(keydata, replica_key_id)
+
+ldaphsm.flush()
 
 
-sys.exit(0)
-
-# set CKA_WRAP = FALSE for all replica keys removed from LDAP
-removed_replica_keys = set(localhsm.replica_pubkeys.keys()) \
-        - set(ldaphsm.replica_pubkeys.keys())
-log.info("obsolete replica keys in local HSM: %s", hex_set(removed_replica_keys))
-for key_id in removed_replica_keys:
-    localhsm.replica_pubkeys[key_id]['ipk11wrap'] = False
-
-# synchronize replica key attributes from LDAP to local HSM
-existing_replica_keys = set(localhsm.replica_pubkeys.keys()).intersection(
-        set(ldaphsm.replica_pubkeys.keys()))
-log.info("replica keys in local HSM & LDAP: %s", hex_set(existing_replica_keys))
-for key_id in existing_replica_keys:
-    sync_pkcs11_metadata(ldaphsm.replica_pubkeys[key_id],
-            localhsm.replica_pubkeys[key_id])
-
-
-
-
-
-
+#sys.exit(0)
 ldap_zone = get_ldap_zone(ldap, dns_dn, zone_name)
 zone_dn = ldap_zone.dn
 

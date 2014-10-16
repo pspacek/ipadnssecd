@@ -96,3 +96,13 @@ def populate_pkcs11_metadata(source, target):
         if attr in source:
             target[attr] = source[attr]
 
+
+class AbstractHSM(object):
+    def _filter_replica_keys(self, all_keys):
+        replica_keys = {}
+        for key_id, key in all_keys.iteritems():
+            if not key['ipk11label'].startswith('dnssec-replica:'):
+                continue
+            replica_keys[key_id] = key
+        return replica_keys
+

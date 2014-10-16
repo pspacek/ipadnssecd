@@ -12,10 +12,9 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
-from abshsm import attrs_name2id, attrs_id2name, bool_attr_names, populate_pkcs11_metadata
+from abshsm import attrs_name2id, attrs_id2name, bool_attr_names, populate_pkcs11_metadata, AbstractHSM
 import ipapkcs11
 import uuid
-
 
 def uri_escape(val):
     """convert val to %-notation suitable for ID component in URI"""
@@ -101,9 +100,11 @@ class Key(collections.MutableMapping):
         - non-normalized attribute names
         - boolean attributes returned as strings
     """
-    def __init__(self, entry, ldap):
+    def __init__(self, entry, ldap, ldaphsm):
         self.entry = entry
         self.ldap = ldap
+        self.ldaphsm = ldaphsm
+        self.log = ldap.log.getChild(__name__)
 
     def __getitem__(self, key):
         val = self.entry.single_value[key]
@@ -140,16 +141,20 @@ class Key(collections.MutableMapping):
 
 class ReplicaKey(Key):
     # TODO: object class assert
-    def __init__(self, entry, ldap):
-        super(ReplicaKey, self).__init__(entry, ldap)
+    def __init__(self, entry, ldap, ldaphsm):
+        super(ReplicaKey, self).__init__(entry, ldap, ldaphsm)
 
 class MasterKey(Key):
     # TODO: object class assert
-    def __init__(self, entry, ldap):
-        super(MasterKey, self).__init__(entry, ldap)
+    def __init__(self, entry, ldap, ldaphsm):
+        super(MasterKey, self).__init__(entry, ldap, ldaphsm)
 
     @property
-    def wrapped_data(self):
+    def wrapped_entries(self):
+        """LDAP entires with wrapped data
+
+        One entry = one blob + ipaWrappingKey pointer to unwrapping key"""
+
         keys = []
         if 'ipaSecretKeyRef' not in self.entry:
             return keys
@@ -161,25 +166,34 @@ class MasterKey(Key):
             except ipalib.errors.NotFound:
                 continue
 
-    def add_wrapped_data(self, data):
+        return keys
+
+    def add_wrapped_data(self, data, replica_key_id):
         wrapping_key_uri = 'pkcs11:id=%s;type=public' \
                 % uri_escape(self['ipk11id'])
         # TODO: replace this with 'autogenerate' to prevent collisions
         uuid_rdn = DN('ipk11UniqueId=%s' % uuid.uuid1())
-        entry_dn = DN(uuid_rdn, self.ldap.base_dn)
+        entry_dn = DN(uuid_rdn, self.ldaphsm.base_dn)
         entry = self.ldap.make_entry(entry_dn,
                    objectClass=['ipaSecretKeyObject', 'ipk11Object'],
                    ipaSecretKey=data,
                    ipaWrappingKey=wrapping_key_uri)
 
+        self.log.info('adding master key 0x%s wrapped with replica key 0x%s to %s',
+                binascii.hexlify(self['ipk11id']),
+                binascii.hexlify(replica_key_id),
+                entry_dn)
         self.ldap.add_entry(entry)
+        if 'ipaSecretKeyRef' not in self.entry:
+            self.entry['objectClass'] += ['ipaSecretKeyRefObject']
+        self.entry.setdefault('ipaSecretKeyRef', []).append(entry_dn)
 
 
-class LDAPHSM(object):
+class LDAPHSM(AbstractHSM):
     def __init__(self, log, ldap, base_dn):
         self.ldap = ldap
         self.base_dn = base_dn
-        self.cache_replica_pubkeys = None
+        self.cache_replica_pubkeys_wrap = None
         self.log = log
         self.cache_masterkeys = None
 
@@ -193,14 +207,14 @@ class LDAPHSM(object):
         keys = {}
         for o in objs:
             # add default values not present in LDAP
-            key = key_type(o, self.ldap)
+            key = key_type(o, self.ldap, self)
             default_attrs = get_default_attrs(key.entry['objectclass'])
             for attr in default_attrs:
                 key.setdefault(attr, default_attrs[attr])
 
             assert 'ipk11id' in o, 'key is missing ipk11Id in %s' % key.entry.dn
             key_id = key['ipk11id']
-            assert key_id not in keys, 'duplicate ipk11Id=0x%s in "%s" and "%s"' % (binascii.hexlify(key_id), key.entry.dn, keys[key_id].dn)
+            assert key_id not in keys, 'duplicate ipk11Id=0x%s in "%s" and "%s"' % (binascii.hexlify(key_id), key.entry.dn, keys[key_id].entry.dn)
             assert 'ipk11label' in key, 'key "%s" is missing ipk11Label' % key.entry.dn
             assert 'objectclass' in key.entry, 'key "%s" is missing objectClass attribute' % key.entry.dn
 
@@ -219,7 +233,7 @@ class LDAPHSM(object):
             pass
 
     def _update_keys(self):
-        for cache in [self.cache_masterkeys, self.cache_replica_pubkeys]:
+        for cache in [self.cache_masterkeys, self.cache_replica_pubkeys_wrap]:
             if cache:
                 for key in cache.itervalues():
                     self._update_key(key)
@@ -228,14 +242,14 @@ class LDAPHSM(object):
         """write back content of caches to LDAP"""
         self._update_keys()
         self.cache_masterkeys = None
-        self.cache_replica_pubkeys = None
+        self.cache_replica_pubkeys_wrap = None
 
     def import_keys_metadata(self, source_keys):
         """import key metadata from Key-compatible objects
-        
+
         metadata from multiple source keys can be imported into single LDAP
         object
-        
+
         :param: source_keys is iterable of (Key object, PKCS#11 object class)"""
         obj_classes = ['ipk11Object']
 
@@ -249,35 +263,28 @@ class LDAPHSM(object):
             entry = self.ldap.make_entry(entry_dn, objectClass=obj_classes,
                         ipk11UniqueId='autogenerate')
 
-            new_key = Key(entry, self.ldap)
+            new_key = Key(entry, self.ldap, self)
             populate_pkcs11_metadata(source_key, new_key)
             new_key._cleanup_key()
             self.ldap.add_entry(new_key.entry)
-            
+            self.log.error('imported master key metadata: %s', new_key.entry)
+
     @property
-    def replica_pubkeys(self):
-        if self.cache_replica_pubkeys:
-            return self.cache_replica_pubkeys
+    def replica_pubkeys_wrap(self):
+        keys = self._filter_replica_keys(
+                self._get_key_dict(ReplicaKey,
+                '(&(objectClass=ipk11PublicKey)(ipk11Wrap=TRUE)(objectClass=ipaPublicKeyObject))'))
 
-        keys = self._get_key_dict(ReplicaKey,
-                '(&(objectClass=ipk11PublicKey)(ipk11Wrap=TRUE)(objectClass=ipaPublicKeyObject))')
-        for key in keys.itervalues():
-            prefix = 'dnssec-replica:'
-            assert key['ipk11label'].startswith(prefix), \
-                'public key dn="%s" ipk11id=0x%s ipk11label="%s" with ipk11Wrap = TRUE does not have '\
-                '"%s" prefix in key label' % (
-                    key.entry.dn,
-                    binascii.hexlify(key['ipk11id']),
-                    str(key['ipk11label']),
-                    prefix)
-
-        self.cache_replica_pubkeys = keys
+        self.cache_replica_pubkeys_wrap = keys
         return keys
 
     @property
     def master_keys(self):
         if self.cache_masterkeys:
+            self.log.error('using master key cache')
             return self.cache_masterkeys
+
+        self.log.error('NOT using master key cache')
 
         keys = self._get_key_dict(MasterKey,
                 '(&(objectClass=ipk11SecretKey)(|(ipk11UnWrap=TRUE)(!(ipk11UnWrap=*)))(ipk11Label=dnssec-master))')
@@ -291,5 +298,6 @@ class LDAPHSM(object):
                     str(key['ipk11label']),
                     prefix)
 
+        self.log.error('fresh master keys from LDAP: %s', keys)
         self.cache_masterkeys = keys
         return keys
