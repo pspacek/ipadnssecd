@@ -151,10 +151,10 @@ class MasterKey(Key):
     @property
     def wrapped_data(self):
         keys = []
-        if 'ipaKeyRef' not in self.entry:
+        if 'ipaSecretKeyRef' not in self.entry:
             return keys
 
-        for dn in self.entry['ipaKeyRef']:
+        for dn in self.entry['ipaSecretKeyRef']:
             try:
                 obj = self.ldap.get_entry(dn)
                 keys.append(obj)
