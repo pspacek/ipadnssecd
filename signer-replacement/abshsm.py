@@ -106,3 +106,12 @@ class AbstractHSM(object):
             replica_keys[key_id] = key
         return replica_keys
 
+    def _filter_zone_keys(self, all_keys):
+        zone_keys = {}
+        for key_id, key in all_keys.iteritems():
+            if key['ipk11label'] == u'dnssec-master' \
+                or key['ipk11label'].startswith('dnssec-replica:'):
+                continue
+            zone_keys[key_id] = key
+        return zone_keys
+

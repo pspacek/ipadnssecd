@@ -103,7 +103,6 @@ class LocalHSM(AbstractHSM):
         return self._filter_replica_keys(
                 self.find_keys(objclass=ipapkcs11.KEY_CLASS_PUBLIC_KEY))
 
-
     @property
     def replica_pubkeys_wrap(self):
         return self._filter_replica_keys(
@@ -123,6 +122,25 @@ class LocalHSM(AbstractHSM):
                         str(key['ipk11label']), prefix)
 
         return keys
+
+    @property
+    def active_master_key(self):
+        """Get one active DNSSEC master key suitable for key wrapping"""
+        keys = self.find_keys(objclass=ipapkcs11.KEY_CLASS_SECRET_KEY,
+                label=u'dnssec-master', cka_wrap=True, cka_unwrap=True)
+        assert len(keys) > 0, "DNSSEC master key with UN/WRAP = TRUE not found"
+        return keys.popitem()[1]
+
+    @property
+    def zone_pubkeys(self):
+        return self._filter_zone_keys(
+                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PUBLIC_KEY))
+
+    @property
+    def zone_privkeys(self):
+        return self._filter_zone_keys(
+                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PRIVATE_KEY))
+
 
     def import_public_key(self, source, data):
         h = self.p11.import_public_key(
@@ -163,3 +181,17 @@ if __name__ == '__main__':
     for mkey_id, mkey in localhsm.master_keys.iteritems():
         print hexlify(mkey_id)
         pprint(mkey)
+
+    print ''
+    print 'zone public keys'
+    print '================'
+    for key_id, key in localhsm.zone_pubkeys.iteritems():
+        print hexlify(key_id)
+        pprint(key)
+
+    print ''
+    print 'zone private keys'
+    print '================='
+    for key_id, key in localhsm.zone_privkeys.iteritems():
+        print hexlify(key_id)
+        pprint(key)

@@ -193,9 +193,11 @@ class LDAPHSM(AbstractHSM):
     def __init__(self, log, ldap, base_dn):
         self.ldap = ldap
         self.base_dn = base_dn
-        self.cache_replica_pubkeys_wrap = None
         self.log = log
+        self.cache_replica_pubkeys_wrap = None
         self.cache_masterkeys = None
+        self.cache_zone_pubkeys = None
+        self.cache_zone_privkeys = None
 
     def _get_key_dict(self, key_type, ldap_filter):
         try:
@@ -233,7 +235,8 @@ class LDAPHSM(AbstractHSM):
             pass
 
     def _update_keys(self):
-        for cache in [self.cache_masterkeys, self.cache_replica_pubkeys_wrap]:
+        for cache in [self.cache_masterkeys, self.cache_replica_pubkeys_wrap,
+                self.cache_zone_privkeys, self.cache_zone_pubkeys]:
             if cache:
                 for key in cache.itervalues():
                     self._update_key(key)
@@ -243,8 +246,10 @@ class LDAPHSM(AbstractHSM):
         self._update_keys()
         self.cache_masterkeys = None
         self.cache_replica_pubkeys_wrap = None
+        self.cache_zone_privkeys = None
+        self.cache_zone_pubkeys = None
 
-    def import_keys_metadata(self, source_keys):
+    def _import_keys_metadata(self, source_keys):
         """import key metadata from Key-compatible objects
 
         metadata from multiple source keys can be imported into single LDAP
@@ -256,6 +261,10 @@ class LDAPHSM(AbstractHSM):
         for source_key, pkcs11_class in source_keys:
             if pkcs11_class == ipapkcs11.KEY_CLASS_SECRET_KEY:
                 obj_classes.append('ipk11SecretKey')
+            elif pkcs11_class == ipapkcs11.KEY_CLASS_PUBLIC_KEY:
+                obj_classes.append('ipk11PublicKey')
+            elif pkcs11_class == ipapkcs11.KEY_CLASS_PRIVATE_KEY:
+                obj_classes.append('ipk11PrivateKey')
             else:
                 raise AssertionError('unsupported object class %s' % pkcs11_class)
 
@@ -266,11 +275,36 @@ class LDAPHSM(AbstractHSM):
             new_key = Key(entry, self.ldap, self)
             populate_pkcs11_metadata(source_key, new_key)
             new_key._cleanup_key()
-            self.ldap.add_entry(new_key.entry)
-            self.log.debug('imported key metadata: %s', new_key.entry)
+            return new_key
+
+    def import_master_key(self, mkey):
+        new_key = self._import_keys_metadata(
+                [(mkey, ipapkcs11.KEY_CLASS_SECRET_KEY)])
+        self.ldap.add_entry(new_key.entry)
+        self.log.debug('imported master key metadata: %s', new_key.entry)
+
+    def import_zone_key(self, pubkey, pubkey_data, privkey,
+            privkey_wrapped_data, master_key_id):
+        new_key = self._import_keys_metadata(
+                    [(pubkey, ipapkcs11.KEY_CLASS_PUBLIC_KEY),
+                    (privkey, ipapkcs11.KEY_CLASS_PRIVATE_KEY)])
+
+        new_key.entry['objectClass'].append('ipaPrivateKeyObject')
+        new_key.entry['ipaPrivateKey'] = privkey_wrapped_data
+        new_key.entry['ipaWrappingKey'] = 'pkcs11:id=%s;type=secret' \
+                % uri_escape(master_key_id)
+
+        new_key.entry['objectClass'].append('ipaPublicKeyObject')
+        new_key.entry['ipaPublicKey'] = pubkey_data
+
+        self.ldap.add_entry(new_key.entry)
+        self.log.debug('imported zone key: %s', new_key.entry)
 
     @property
     def replica_pubkeys_wrap(self):
+        if self.cache_replica_pubkeys_wrap:
+            return self.cache_replica_pubkeys_wrap
+
         keys = self._filter_replica_keys(
                 self._get_key_dict(ReplicaKey,
                 '(&(objectClass=ipk11PublicKey)(ipk11Wrap=TRUE)(objectClass=ipaPublicKeyObject))'))
@@ -297,3 +331,25 @@ class LDAPHSM(AbstractHSM):
 
         self.cache_masterkeys = keys
         return keys
+
+    @property
+    def zone_pubkeys(self):
+        if self.cache_zone_pubkeys:
+            return self.cache_zone_pubkeys
+
+        self.cache_zone_pubkeys = self._filter_zone_keys(
+                self._get_key_dict(Key,
+                '(&(objectClass=ipk11PublicKey)(objectClass=ipaPublicKeyObject))'))
+
+        return self.cache_zone_pubkeys
+
+    @property
+    def zone_privkeys(self):
+        if self.cache_zone_privkeys:
+            return self.cache_zone_privkeys
+
+        self.cache_zone_privkeys = self._filter_zone_keys(
+                self._get_key_dict(Key,
+                '(&(objectClass=ipk11PrivateKey)(objectClass=ipaPrivateKeyObject))'))
+
+        return self.cache_zone_privkeys

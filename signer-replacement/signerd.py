@@ -179,9 +179,16 @@ def get_ods_keys(zone_name):
 
         return keys
 
+def sync_set_metadata(log, source_set, target_set):
+    """sync metadata from source_set to target_set
+
+    Keys not present in both sets are left intact."""
+    log = log.getChild('sync_metadata')
+
 def ldap2master_replica_keys_sync(log, ldaphsm, localhsm):
     """LDAP=>master's local HSM replica key synchronization"""
     # import new replica keys from LDAP
+    log = log.getChild('ldap2master_replica')
     log.debug("replica pub keys in LDAP: %s", hex_set(ldaphsm.replica_pubkeys_wrap))
     log.debug("replica pub keys in SoftHSM: %s", hex_set(localhsm.replica_pubkeys_wrap))
     new_replica_keys = set(ldaphsm.replica_pubkeys_wrap.keys()) \
@@ -222,7 +229,7 @@ def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
     log.debug("new master keys in local HSM: %s", hex_set(new_master_keys))
     for mkey_id in new_master_keys:
         mkey = localhsm.master_keys[mkey_id]
-        ldaphsm.import_keys_metadata([(mkey, ipapkcs11.KEY_CLASS_SECRET_KEY)])
+        ldaphsm.import_master_key(mkey)
 
     # re-fill cache with keys we just added
     ldaphsm.flush()
@@ -343,6 +350,37 @@ localhsm = LocalHSM('/usr/lib64/pkcs11/libsofthsm2.so', 0, open('/var/lib/ipa/dn
 
 ldap2master_replica_keys_sync(log, ldaphsm, localhsm)
 master2ldap_master_keys_sync(log, ldaphsm, localhsm)
+
+# synchroniza zone keys
+privkeys_ldap = ldaphsm.zone_privkeys
+pubkeys_ldap = ldaphsm.zone_pubkeys
+
+pubkeys_local = localhsm.zone_pubkeys
+privkeys_local = localhsm.zone_privkeys
+
+assert pubkeys_local.keys() == privkeys_local.keys(), \
+        "IDs of private and public keys for DNS zones in local HSM does " \
+        "not match to key pairs"
+assert len(pubkeys_ldap) == len(privkeys_ldap), \
+        "# of private and public keys for DNS zones in LDAP does not match"
+
+new_keys = set(pubkeys_local) - set(pubkeys_ldap)
+mkey = localhsm.active_master_key
+# wrap each new zone key pair with selected master key
+for zkey_id in new_keys:
+    pubkey = pubkeys_local[zkey_id]
+    pubkey_data = localhsm.p11.export_public_key(pubkey.handle)
+
+    privkey = privkeys_local[zkey_id]
+    privkey_data = localhsm.p11.export_wrapped_key(privkey.handle,
+            wrapping_key=mkey.handle,
+            wrapping_mech=ipapkcs11.MECH_AES_KEY_WRAP_PAD)
+    ldaphsm.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
+            mkey['ipk11id'])
+
+existing_keys = set(pubkeys_local)
+
+
 #sys.exit(0)
 ldap_zone = get_ldap_zone(ldap, dns_dn, zone_name)
 zone_dn = ldap_zone.dn
