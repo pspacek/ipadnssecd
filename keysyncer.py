@@ -60,17 +60,22 @@ class KeySyncer(SyncReplConsumer):
             self.key_meta_del(uuid, dn, oldattrs)
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
-        olddn = ldap.dn.str2dn(oldattrs['dn'])
-        newdn = ldap.dn.str2dn(newattrs['dn'])
-        assert olddn == newdn, 'modrdn operation is not supported'
+        objclass = self._get_objclass(oldattrs)
+        if objclass == 'idnszone':
+            olddn = ldap.dn.str2dn(oldattrs['dn'])
+            newdn = ldap.dn.str2dn(newattrs['dn'])
+            assert olddn == newdn, 'modrdn operation is not supported'
 
-        oldval = self.__get_signing_attr(oldattrs)
-        newval = self.__get_signing_attr(newattrs)
-        if oldval != newval:
-            if self.__is_dnssec_enabled(newattrs):
-                self.zone_add(olddn, uuid, newattrs)
-            else:
-                self.zone_del(olddn, uuid, oldattrs)
+            oldval = self.__get_signing_attr(oldattrs)
+            newval = self.__get_signing_attr(newattrs)
+            if oldval != newval:
+                if self.__is_dnssec_enabled(newattrs):
+                    self.zone_add(olddn, uuid, newattrs)
+                else:
+                    self.zone_del(olddn, uuid, oldattrs)
+
+        elif objclass == 'idnsseckey':
+            self.key_metadata_sync(uuid, dn, oldattrs, newattrs)
 
     def syncrepl_refreshdone(self):
         self.log.info('Initial LDAP dump is done, sychronizing with ODS and BIND')
@@ -85,6 +90,10 @@ class KeySyncer(SyncReplConsumer):
 
     def key_meta_del(self, uuid, dn, oldattrs):
         self.bindmgr.ldap_event('del', uuid, oldattrs)
+        self.bindmgr_sync()
+
+    def key_metadata_sync(self, uuid, dn, oldattrs, newattrs):
+        self.bindmgr.ldap_event('mod', uuid, newattrs)
         self.bindmgr_sync()
 
     def bindmgr_sync(self):

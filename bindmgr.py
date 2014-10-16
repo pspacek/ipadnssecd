@@ -90,20 +90,25 @@ class BINDMgr(object):
         return params
 
     def ldap_event(self, op, uuid, attrs):
-        """Record single LDAP event - key addition or deletion.
+        """Record single LDAP event - key addition, deletion or modification.
 
         Change is only recorded to memory.
         self.sync() has to be called to synchronize change to BIND."""
-        assert op == 'add' or op == 'del'
+        assert op == 'add' or op == 'del' or op == 'mod'
         zone = self.dn2zone_name(attrs['dn'])
         self.modified_zones.add(zone)
         zone_keys = self.ldap_keys.setdefault(zone, {})
         if op == 'add':
             self.log.info('Key metadata %s added to zone %s' % (attrs['dn'], zone))
             zone_keys[uuid] = attrs
+
         elif op == 'del':
             self.log.info('Key metadata %s deleted from zone %s' % (attrs['dn'], zone))
             zone_keys.pop(uuid)
+
+        elif op == 'mod':
+            self.log.info('Key metadata %s updated in zone %s' % (attrs['dn'], zone))
+            zone_keys[uuid] = attrs
 
     def install_key(self, zone, uuid, attrs, workdir):
         """Run dnssec-keyfromlabel on given LDAP object.
