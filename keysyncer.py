@@ -70,9 +70,9 @@ class KeySyncer(SyncReplConsumer):
             newval = self.__get_signing_attr(newattrs)
             if oldval != newval:
                 if self.__is_dnssec_enabled(newattrs):
-                    self.zone_add(olddn, uuid, newattrs)
+                    self.zone_add(uuid, olddn, newattrs)
                 else:
-                    self.zone_del(olddn, uuid, oldattrs)
+                    self.zone_del(uuid, olddn, oldattrs)
 
         elif objclass == 'idnsseckey':
             self.key_metadata_sync(uuid, dn, oldattrs, newattrs)
