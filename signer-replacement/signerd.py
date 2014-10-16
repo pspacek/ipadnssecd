@@ -25,7 +25,7 @@ from ipaplatform.paths import paths
 from abshsm import sync_pkcs11_metadata
 from ldaphsm import LDAPHSM
 from localhsm import LocalHSM
-import ipapkcs11
+import _ipap11helper
 
 DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
@@ -271,7 +271,7 @@ def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
                 hexlify(mkey_id), hexlify(replica_key_id)))
             replica_key = localhsm.replica_pubkeys_wrap[replica_key_id]
             keydata = localhsm.p11.export_wrapped_key(mkey_local.handle,
-                    replica_key.handle, ipapkcs11.MECH_RSA_PKCS)
+                    replica_key.handle, _ipap11helper.MECH_RSA_PKCS)
             # TODO: MECH_RSA_OAEP
             mkey_ldap.add_wrapped_data(keydata, replica_key_id)
 
@@ -299,7 +299,7 @@ def master2ldap_zone_keys_sync(log, ldaphsm, localhsm):
         privkey = privkeys_local[zkey_id]
         privkey_data = localhsm.p11.export_wrapped_key(privkey.handle,
                 wrapping_key=mkey.handle,
-                wrapping_mech=ipapkcs11.MECH_AES_KEY_WRAP_PAD)
+                wrapping_mech=_ipap11helper.MECH_AES_KEY_WRAP_PAD)
         ldaphsm.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
                 mkey['ipk11id'])
 

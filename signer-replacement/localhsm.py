@@ -7,7 +7,7 @@ from pprint import pprint
 import sys
 import time
 
-import ipapkcs11
+import _ipap11helper
 from abshsm import attrs_name2id, attrs_id2name, AbstractHSM
 
 class Key(collections.MutableMapping):
@@ -16,37 +16,37 @@ class Key(collections.MutableMapping):
         self.handle = handle
         # sanity check CKA_ID and CKA_LABEL
         try:
-            cka_id = self.p11.get_attribute(handle, ipapkcs11.CKA_ID)
+            cka_id = self.p11.get_attribute(handle, _ipap11helper.CKA_ID)
             assert len(cka_id) != 0, 'ipk11id length should not be 0'
-        except ipapkcs11.NotFound:
-            raise ipapkcs11.NotFound('key without ipk11id: handle %s' % handle)
+        except _ipap11helper.NotFound:
+            raise _ipap11helper.NotFound('key without ipk11id: handle %s' % handle)
 
         try:
-            cka_label = self.p11.get_attribute(handle, ipapkcs11.CKA_LABEL)
+            cka_label = self.p11.get_attribute(handle, _ipap11helper.CKA_LABEL)
             assert len(cka_label) != 0, 'ipk11label length should not be 0'
 
-        except ipapkcs11.NotFound:
-            raise ipapkcs11.NotFound('key without ipk11label: id 0x%s'
+        except _ipap11helper.NotFound:
+            raise _ipap11helper.NotFound('key without ipk11label: id 0x%s'
                     % hexlify(cka_id))
 
     def __getitem__(self, key):
         try:
             return self.p11.get_attribute(self.handle, attrs_name2id[key])
-        except ipapkcs11.NotFound:
+        except _ipap11helper.NotFound:
             raise KeyError()
 
     def __setitem__(self, key, value):
         return self.p11.set_attribute(self.handle, attrs_name2id[key], value)
 
     def __delitem__(self, key):
-        raise ipapkcs11.Exception('__delitem__ is not supported')
+        raise _ipap11helper.Exception('__delitem__ is not supported')
 
     def __iter__(self):
         """generates list of ipa names of all attributes present in the object"""
         for pkcs11_id, ipa_name in attrs_id2name.iteritems():
             try:
                 self.p11.get_attribute(self.handle, pkcs11_id)
-            except ipapkcs11.NotFound:
+            except _ipap11helper.NotFound:
                 continue
 
             yield ipa_name
@@ -70,8 +70,7 @@ class Key(collections.MutableMapping):
 class LocalHSM(AbstractHSM):
     def __init__(self, library, slot, pin):
         self.cache_replica_pubkeys = None
-        self.p11 = ipapkcs11.IPA_PKCS11()
-        self.p11.initialize(slot, pin, library)
+        self.p11 = _ipap11helper.P11_Helper(slot, pin, library)
         self.log = logging.getLogger()
 
     def __del__(self):
@@ -101,18 +100,18 @@ class LocalHSM(AbstractHSM):
     @property
     def replica_pubkeys(self):
         return self._filter_replica_keys(
-                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PUBLIC_KEY))
+                self.find_keys(objclass=_ipap11helper.KEY_CLASS_PUBLIC_KEY))
 
     @property
     def replica_pubkeys_wrap(self):
         return self._filter_replica_keys(
-                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PUBLIC_KEY,
+                self.find_keys(objclass=_ipap11helper.KEY_CLASS_PUBLIC_KEY,
                 cka_wrap=True))
 
     @property
     def master_keys(self):
         """Get all usable DNSSEC master keys"""
-        keys = self.find_keys(objclass=ipapkcs11.KEY_CLASS_SECRET_KEY, label=u'dnssec-master', cka_unwrap=True)
+        keys = self.find_keys(objclass=_ipap11helper.KEY_CLASS_SECRET_KEY, label=u'dnssec-master', cka_unwrap=True)
 
         for key in keys.itervalues():
             prefix = 'dnssec-master'
@@ -126,7 +125,7 @@ class LocalHSM(AbstractHSM):
     @property
     def active_master_key(self):
         """Get one active DNSSEC master key suitable for key wrapping"""
-        keys = self.find_keys(objclass=ipapkcs11.KEY_CLASS_SECRET_KEY,
+        keys = self.find_keys(objclass=_ipap11helper.KEY_CLASS_SECRET_KEY,
                 label=u'dnssec-master', cka_wrap=True, cka_unwrap=True)
         assert len(keys) > 0, "DNSSEC master key with UN/WRAP = TRUE not found"
         return keys.popitem()[1]
@@ -134,12 +133,12 @@ class LocalHSM(AbstractHSM):
     @property
     def zone_pubkeys(self):
         return self._filter_zone_keys(
-                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PUBLIC_KEY))
+                self.find_keys(objclass=_ipap11helper.KEY_CLASS_PUBLIC_KEY))
 
     @property
     def zone_privkeys(self):
         return self._filter_zone_keys(
-                self.find_keys(objclass=ipapkcs11.KEY_CLASS_PRIVATE_KEY))
+                self.find_keys(objclass=_ipap11helper.KEY_CLASS_PRIVATE_KEY))
 
 
     def import_public_key(self, source, data):

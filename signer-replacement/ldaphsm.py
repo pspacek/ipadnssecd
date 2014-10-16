@@ -13,7 +13,7 @@ from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
 from abshsm import attrs_name2id, attrs_id2name, bool_attr_names, populate_pkcs11_metadata, AbstractHSM
-import ipapkcs11
+import _ipap11helper
 import uuid
 
 def uri_escape(val):
@@ -261,12 +261,12 @@ class LDAPHSM(AbstractHSM):
         new_key = Key(entry, self.ldap, self)
 
         for source_key, pkcs11_class in source_keys:
-            if pkcs11_class == ipapkcs11.KEY_CLASS_SECRET_KEY:
+            if pkcs11_class == _ipap11helper.KEY_CLASS_SECRET_KEY:
                 entry['objectClass'].append('ipk11SecretKey')
                 # TODO: add ipk11KeyType attribute
-            elif pkcs11_class == ipapkcs11.KEY_CLASS_PUBLIC_KEY:
+            elif pkcs11_class == _ipap11helper.KEY_CLASS_PUBLIC_KEY:
                 entry['objectClass'].append('ipk11PublicKey')
-            elif pkcs11_class == ipapkcs11.KEY_CLASS_PRIVATE_KEY:
+            elif pkcs11_class == _ipap11helper.KEY_CLASS_PRIVATE_KEY:
                 entry['objectClass'].append('ipk11PrivateKey')
             else:
                 raise AssertionError('unsupported object class %s' % pkcs11_class)
@@ -277,15 +277,15 @@ class LDAPHSM(AbstractHSM):
 
     def import_master_key(self, mkey):
         new_key = self._import_keys_metadata(
-                [(mkey, ipapkcs11.KEY_CLASS_SECRET_KEY)])
+                [(mkey, _ipap11helper.KEY_CLASS_SECRET_KEY)])
         self.ldap.add_entry(new_key.entry)
         self.log.debug('imported master key metadata: %s', new_key.entry)
 
     def import_zone_key(self, pubkey, pubkey_data, privkey,
             privkey_wrapped_data, master_key_id):
         new_key = self._import_keys_metadata(
-                    [(pubkey, ipapkcs11.KEY_CLASS_PUBLIC_KEY),
-                    (privkey, ipapkcs11.KEY_CLASS_PRIVATE_KEY)])
+                    [(pubkey, _ipap11helper.KEY_CLASS_PUBLIC_KEY),
+                    (privkey, _ipap11helper.KEY_CLASS_PRIVATE_KEY)])
 
         new_key.entry['objectClass'].append('ipaPrivateKeyObject')
         new_key.entry['ipaPrivateKey'] = privkey_wrapped_data
