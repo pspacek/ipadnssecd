@@ -14,5 +14,5 @@ done
 
 ln -s "$(pwd)/ipa-dnskeysyncd.service" /lib/systemd/system/ipa-dnskeysyncd.service
 ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.service" /lib/systemd/system/ipa-ods-exporter.service 
-ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.socket" /etc/systemd/system/ipa-ods-exporter.socket 
+ln -s "$(pwd)/signer-replacement/ipa-ods-exporter.socket" /lib/systemd/system/ipa-ods-exporter.socket
 systemctl daemon-reload
