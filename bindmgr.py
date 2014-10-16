@@ -36,6 +36,7 @@ class BINDMgr(object):
         self.api = api
         self.log = ipa_log_manager.log_mgr.get_logger(self)
         self.ldap_keys = {}
+        self.modified_zones = set()
 
     def util(self, cmd, cwd=None):
         """Call given command and return stdout + stderr.
@@ -55,7 +56,7 @@ class BINDMgr(object):
         return stdout
 
     def notify_zone(self, zone):
-        cmd = ['rndc', 'loadkeys', zone]
+        cmd = ['rndc', 'loadkeys', zone.to_text()]
         output = self.util(cmd)
         self.log.info(output)
 
@@ -95,6 +96,7 @@ class BINDMgr(object):
         self.sync() has to be called to synchronize change to BIND."""
         assert op == 'add' or op == 'del'
         zone = self.dn2zone_name(attrs['dn'])
+        self.modified_zones.add(zone)
         zone_keys = self.ldap_keys.setdefault(zone, {})
         if op == 'add':
             self.log.info('Key metadata %s added to zone %s' % (attrs['dn'], zone))
@@ -144,10 +146,14 @@ class BINDMgr(object):
         # fix HSM permissions
         # TODO: move out
         for prefix, dirs, files in os.walk(paths.SOFTHSM_TOKENS_DIR, topdown=True):
-            for name in files:
-                os.chmod(os.path.join(prefix, name), FILE_PERM)
             for name in dirs:
-                os.chmod(os.path.join(prefix, name), DIR_PERM | stat.S_ISGID)
+                fpath = os.path.join(prefix, name)
+                self.log.debug('Fixing directory permissions: %s', fpath)
+                os.chmod(fpath, DIR_PERM | stat.S_ISGID)
+            for name in files:
+                fpath = os.path.join(prefix, name)
+                self.log.debug('Fixing file permissions: %s', fpath)
+                os.chmod(fpath, FILE_PERM)
         # TODO: move out
 
         with TemporaryDirectory(zone_path) as tempdir:
@@ -163,28 +169,16 @@ class BINDMgr(object):
             shutil.move(tempdir, target_dir)
             os.chmod(target_dir, DIR_PERM)
 
-        # TODO: path
-        cmd = ['rndc', 'loadkeys', zone.to_text()]
-        self.log.info(self.util(cmd).strip())
+        self.notify_zone(zone)
 
             
     def sync(self):
         """Synchronize list of zones in LDAP with BIND."""
-        self.log.debug('!!!!!!!! Keys in LDAP: %s' % self.ldap_keys)
-        for zone in self.ldap_keys.keys():
+        self.log.debug('Key metadata in LDAP: %s' % self.ldap_keys)
+        for zone in self.modified_zones:
             self.sync_zone(zone)
 
-        return
-        zl_ods = self.get_ods_zonelist()
-        self.log.debug("ODS zones: %s", zl_ods.mapping)
-        removed = self.diff_zl(zl_ods, self.zl_ldap)
-        self.log.info("Zones removed from LDAP: %s", removed)
-        added = self.diff_zl(self.zl_ldap, zl_ods)
-        self.log.info("Zones added to LDAP: %s", added)
-        for (uuid, name) in removed:
-            self.del_ods_zone(name)
-        for (uuid, name) in added:
-            self.add_ods_zone(uuid, name)
+        self.modified_zones = set()
 
     def diff_zl(self, s1, s2):
         """Compute zones present in s1 but not present in s2.
@@ -195,7 +189,3 @@ class BINDMgr(object):
                    if uuid in s1_extra]
         return removed
 
-
-if __name__ == '__main__':
-    ipa_log_manager.standard_logging_setup(debug=True)
-    bind = BINDMgr()

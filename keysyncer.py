@@ -53,9 +53,11 @@ class KeySyncer(SyncReplConsumer):
             self.key_meta_add(uuid, dn, newattrs)
 
     def application_del(self, uuid, dn, oldattrs):
-        if self.__is_dnssec_enabled(oldattrs):
-            self.odsmgr.ldap_event('del', uuid, oldattrs)
-        self.ods_sync()
+        objclass = self._get_objclass(oldattrs)
+        if objclass == 'idnszone':
+            self.zone_del(uuid, dn, oldattrs)
+        elif objclass == 'idnsseckey':
+            self.key_meta_del(uuid, dn, oldattrs)
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
         olddn = ldap.dn.str2dn(oldattrs['dn'])
@@ -66,10 +68,9 @@ class KeySyncer(SyncReplConsumer):
         newval = self.__get_signing_attr(newattrs)
         if oldval != newval:
             if self.__is_dnssec_enabled(newattrs):
-                self.odsmgr.ldap_event('add', uuid, newattrs)
+                self.zone_add(olddn, uuid, newattrs)
             else:
-                self.odsmgr.ldap_event('del', uuid, oldattrs)
-        self.ods_sync()
+                self.zone_del(olddn, uuid, oldattrs)
 
     def syncrepl_refreshdone(self):
         self.log.info('Initial LDAP dump is done, sychronizing with ODS and BIND')
@@ -80,11 +81,25 @@ class KeySyncer(SyncReplConsumer):
     # idnsSecKey wrapper
     def key_meta_add(self, uuid, dn, newattrs):
         self.bindmgr.ldap_event('add', uuid, newattrs)
+        self.bindmgr_sync()
+
+    def key_meta_del(self, uuid, dn, oldattrs):
+        self.bindmgr.ldap_event('del', uuid, oldattrs)
+        self.bindmgr_sync()
+
+    def bindmgr_sync(self):
+        if self.init_done:
+            self.bindmgr.sync()
 
     # idnsZone wrapper
     def zone_add(self, uuid, dn, newattrs):
         if self.__is_dnssec_enabled(newattrs):
             self.odsmgr.ldap_event('add', uuid, newattrs)
+        self.ods_sync()
+
+    def zone_del(self, uuid, dn, oldattrs):
+        if self.__is_dnssec_enabled(oldattrs):
+            self.odsmgr.ldap_event('del', uuid, oldattrs)
         self.ods_sync()
 
     def ods_sync(self):
