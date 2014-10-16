@@ -56,7 +56,7 @@ class BINDMgr(object):
         return stdout
 
     def notify_zone(self, zone):
-        cmd = ['rndc', 'loadkeys', zone.to_text()]
+        cmd = ['rndc', 'sign', zone.to_text()]
         output = self.util(cmd)
         self.log.info(output)
 
