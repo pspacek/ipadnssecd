@@ -170,7 +170,7 @@ class MasterKey(Key):
 
     def add_wrapped_data(self, data, replica_key_id):
         wrapping_key_uri = 'pkcs11:id=%s;type=public' \
-                % uri_escape(self['ipk11id'])
+                % uri_escape(replica_key_id)
         # TODO: replace this with 'autogenerate' to prevent collisions
         uuid_rdn = DN('ipk11UniqueId=%s' % uuid.uuid1())
         entry_dn = DN(uuid_rdn, self.ldaphsm.base_dn)
@@ -267,7 +267,7 @@ class LDAPHSM(AbstractHSM):
             populate_pkcs11_metadata(source_key, new_key)
             new_key._cleanup_key()
             self.ldap.add_entry(new_key.entry)
-            self.log.error('imported master key metadata: %s', new_key.entry)
+            self.log.debug('imported key metadata: %s', new_key.entry)
 
     @property
     def replica_pubkeys_wrap(self):
@@ -281,10 +281,7 @@ class LDAPHSM(AbstractHSM):
     @property
     def master_keys(self):
         if self.cache_masterkeys:
-            self.log.error('using master key cache')
             return self.cache_masterkeys
-
-        self.log.error('NOT using master key cache')
 
         keys = self._get_key_dict(MasterKey,
                 '(&(objectClass=ipk11SecretKey)(|(ipk11UnWrap=TRUE)(!(ipk11UnWrap=*)))(ipk11Label=dnssec-master))')
@@ -298,6 +295,5 @@ class LDAPHSM(AbstractHSM):
                     str(key['ipk11label']),
                     prefix)
 
-        self.log.error('fresh master keys from LDAP: %s', keys)
         self.cache_masterkeys = keys
         return keys
