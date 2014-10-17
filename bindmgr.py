@@ -118,7 +118,7 @@ class BINDMgr(object):
         assert attrs.get('idnsseckeyzone', ['FALSE'])[0] == 'TRUE', \
             'object %s is not a DNS zone key' % attrs['dn']
 
-        uri = "%s;pin-source=%s" % (attrs['idnsSecKeyRef'][0], paths.SOFTHSM_PIN)
+        uri = "%s;pin-source=%s" % (attrs['idnsSecKeyRef'][0], paths.DNSSEC_SOFTHSM_PIN)
         # TODO: path?
         cmd = ['dnssec-keyfromlabel-pkcs11', '-K', workdir, '-a', attrs['idnsSecAlgorithm'][0], '-l', uri]
         cmd += self.dates2params(attrs)
@@ -150,7 +150,7 @@ class BINDMgr(object):
 
         # fix HSM permissions
         # TODO: move out
-        for prefix, dirs, files in os.walk(paths.SOFTHSM_TOKENS_DIR, topdown=True):
+        for prefix, dirs, files in os.walk(paths.DNSSEC_TOKENS_DIR, topdown=True):
             for name in dirs:
                 fpath = os.path.join(prefix, name)
                 self.log.debug('Fixing directory permissions: %s', fpath)

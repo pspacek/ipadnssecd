@@ -29,12 +29,11 @@ import _ipap11helper
 
 DAEMONNAME = 'ipa-ods-exporter'
 PRINCIPAL = None  # not initialized yet
-WORKDIR = os.path.join(paths.OPENDNSSEC_VAR_DIR ,'tmp')
+WORKDIR = os.path.join(paths.VAR_OPENDNSSEC_DIR ,'tmp')
 KEYTAB_FB = paths.IPA_ODS_EXPORTER_KEYTAB
 
 ODS_SE_MAXLINE = 1024  # from ODS common/config.h
-ODS_DB_PATH = '/var/opendnssec/kasp.db'
-ODS_DB_LOCK_PATH = '/var/opendnssec/kasp.db.our_lock'
+ODS_DB_LOCK_PATH = "%s%s" % (paths.OPENDNSSEC_KASP_DB, '.our_lock')
 
 # TODO: MECH_RSA_OAEP
 SECRETKEY_WRAPPING_MECH = 'rsaPkcs'
@@ -142,7 +141,8 @@ def get_ldap_keys(ldap, zone_dn):
 def get_ods_keys(zone_name):
     # Open DB directly and read key timestamps etc.
     with ods_db_lock():
-        db = sqlite3.connect(ODS_DB_PATH, isolation_level="EXCLUSIVE")
+        db = sqlite3.connect(paths.OPENDNSSEC_KASP_DB,
+                isolation_level="EXCLUSIVE")
         db.row_factory = sqlite3.Row
         db.execute('BEGIN')
 
@@ -321,6 +321,7 @@ def hex_set(s):
 
 
 log = logging.getLogger('root')
+# this service is socket-activated
 log.addHandler(systemd.journal.JournalHandler())
 log.setLevel(level=logging.DEBUG)
 
@@ -366,7 +367,7 @@ ipalib.api.finalize()
 # Kerberos initialization
 PRINCIPAL = str('%s/%s' % (DAEMONNAME, ipalib.api.env.host))
 log.debug('Kerberos principal: %s', PRINCIPAL)
-ipautil.kinit_hostprincipal(KEYTAB_FB, WORKDIR, PRINCIPAL)
+ipautil.kinit_hostprincipal(paths.IPA_ODS_EXPORTER_KEYTAB, WORKDIR, PRINCIPAL)
 log.debug('Got TGT')
 
 # LDAP initialization
@@ -381,13 +382,14 @@ log.debug('Connected')
 
 ### DNSSEC master: key synchronization
 ldaphsm = LDAPHSM(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
-localhsm = LocalHSM('/usr/lib64/pkcs11/libsofthsm2.so', 0, open('/var/lib/ipa/dnssec/softhsm_pin').read())
+localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
+        open(paths.DNSSEC_SOFTHSM_PIN_SO).read())
 
 ldap2master_replica_keys_sync(log, ldaphsm, localhsm)
 master2ldap_master_keys_sync(log, ldaphsm, localhsm)
 master2ldap_zone_keys_sync(log, ldaphsm, localhsm)
 
-#sys.exit(0)
+### DNSSEC master: DNSSEC key metadata upload
 ldap_zone = get_ldap_zone(ldap, dns_dn, zone_name)
 zone_dn = ldap_zone.dn
 
@@ -446,3 +448,4 @@ for key_id in update_keys_id:
     except ipalib.errors.EmptyModlist:
         continue
 
+log.debug('Done')
