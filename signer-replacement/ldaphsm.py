@@ -168,7 +168,7 @@ class MasterKey(Key):
 
         return keys
 
-    def add_wrapped_data(self, data, replica_key_id):
+    def add_wrapped_data(self, data, wrapping_mech, replica_key_id):
         wrapping_key_uri = 'pkcs11:id=%s;type=public' \
                 % uri_escape(replica_key_id)
         # TODO: replace this with 'autogenerate' to prevent collisions
@@ -178,7 +178,8 @@ class MasterKey(Key):
         entry = self.ldap.make_entry(entry_dn,
                    objectClass=['ipaSecretKeyObject', 'ipk11Object'],
                    ipaSecretKey=data,
-                   ipaWrappingKey=wrapping_key_uri)
+                   ipaWrappingKey=wrapping_key_uri,
+                   ipaWrappingMech=wrapping_mech)
 
         self.log.info('adding master key 0x%s wrapped with replica key 0x%s to %s',
                 hexlify(self['ipk11id']),
@@ -263,7 +264,6 @@ class LDAPHSM(AbstractHSM):
         for source_key, pkcs11_class in source_keys:
             if pkcs11_class == _ipap11helper.KEY_CLASS_SECRET_KEY:
                 entry['objectClass'].append('ipk11SecretKey')
-                # TODO: add ipk11KeyType attribute
             elif pkcs11_class == _ipap11helper.KEY_CLASS_PUBLIC_KEY:
                 entry['objectClass'].append('ipk11PublicKey')
             elif pkcs11_class == _ipap11helper.KEY_CLASS_PRIVATE_KEY:
@@ -282,7 +282,7 @@ class LDAPHSM(AbstractHSM):
         self.log.debug('imported master key metadata: %s', new_key.entry)
 
     def import_zone_key(self, pubkey, pubkey_data, privkey,
-            privkey_wrapped_data, master_key_id):
+            privkey_wrapped_data, wrapping_mech, master_key_id):
         new_key = self._import_keys_metadata(
                     [(pubkey, _ipap11helper.KEY_CLASS_PUBLIC_KEY),
                     (privkey, _ipap11helper.KEY_CLASS_PRIVATE_KEY)])
@@ -291,7 +291,7 @@ class LDAPHSM(AbstractHSM):
         new_key.entry['ipaPrivateKey'] = privkey_wrapped_data
         new_key.entry['ipaWrappingKey'] = 'pkcs11:id=%s;type=secret' \
                 % uri_escape(master_key_id)
-        # TODO: add ipaWrappingMech attribute
+        new_key.entry['ipaWrappingMech'] = wrapping_mech
 
         new_key.entry['objectClass'].append('ipaPublicKeyObject')
         new_key.entry['ipaPublicKey'] = pubkey_data

@@ -22,7 +22,7 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
-from abshsm import sync_pkcs11_metadata
+from abshsm import sync_pkcs11_metadata, wrappingmech_name2id
 from ldaphsm import LDAPHSM
 from localhsm import LocalHSM
 import _ipap11helper
@@ -35,6 +35,10 @@ KEYTAB_FB = paths.IPA_ODS_EXPORTER_KEYTAB
 ODS_SE_MAXLINE = 1024  # from ODS common/config.h
 ODS_DB_PATH = '/var/opendnssec/kasp.db'
 ODS_DB_LOCK_PATH = '/var/opendnssec/kasp.db.our_lock'
+
+# TODO: MECH_RSA_OAEP
+SECRETKEY_WRAPPING_MECH = 'rsaPkcs'
+PRIVKEY_WRAPPING_MECH = 'aesKeyWrapPad'
 
 # DNSKEY flag constants
 dnskey_flag_by_value = {
@@ -272,8 +276,8 @@ def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
             replica_key = localhsm.replica_pubkeys_wrap[replica_key_id]
             keydata = localhsm.p11.export_wrapped_key(mkey_local.handle,
                     replica_key.handle, _ipap11helper.MECH_RSA_PKCS)
-            # TODO: MECH_RSA_OAEP
-            mkey_ldap.add_wrapped_data(keydata, replica_key_id)
+            mkey_ldap.add_wrapped_data(keydata, SECRETKEY_WRAPPING_MECH,
+                    replica_key_id)
 
     ldaphsm.flush()
 
@@ -296,12 +300,13 @@ def master2ldap_zone_keys_sync(log, ldaphsm, localhsm):
         pubkey = pubkeys_local[zkey_id]
         pubkey_data = localhsm.p11.export_public_key(pubkey.handle)
 
+        wrapping_mech = wrappingmech_name2id[PRIVKEY_WRAPPING_MECH]
         privkey = privkeys_local[zkey_id]
         privkey_data = localhsm.p11.export_wrapped_key(privkey.handle,
                 wrapping_key=mkey.handle,
-                wrapping_mech=_ipap11helper.MECH_AES_KEY_WRAP_PAD)
+                wrapping_mech=wrapping_mech)
         ldaphsm.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
-                mkey['ipk11id'])
+                wrapping_mech, mkey['ipk11id'])
 
     sync_set_metadata(log, pubkeys_local, keypairs_ldap)
     sync_set_metadata(log, privkeys_local, keypairs_ldap)
