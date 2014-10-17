@@ -241,7 +241,7 @@ def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
 
     # re-wrap all master keys in LDAP with new replica keys (as necessary)
     enabled_replica_key_ids = set(localhsm.replica_pubkeys_wrap.keys())
-    log.debug('enabled replica key ids: %s', enabled_replica_key_ids)
+    log.debug('enabled replica key ids: %s', hex_set(enabled_replica_key_ids))
 
     for mkey_id, mkey_ldap in ldaphsm.master_keys.iteritems():
         log.debug('processing master key data: 0x%s', hexlify(mkey_id))
@@ -311,7 +311,7 @@ def master2ldap_zone_keys_sync(log, ldaphsm, localhsm):
 def hex_set(s):
     out = set()
     for i in s:
-        out.add(hexlify(i))
+        out.add("0x%s" % hexlify(i))
     return out
 
 
