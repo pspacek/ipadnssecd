@@ -3,6 +3,7 @@
 import logging
 import ldap.dn
 
+from ipaserver.install import opendnssecinstance
 from syncrepl import SyncReplConsumer
 from odsmgr import ODSMgr
 from bindmgr import BINDMgr
@@ -17,7 +18,14 @@ class KeySyncer(SyncReplConsumer):
         self.api = kwargs['ipa_api']
         del kwargs['ipa_api']
 
-        self.odsmgr = ODSMgr()
+        # DNSSEC master should have OpenDNSSEC installed
+        # TODO: Is this the best way?
+        if opendnssecinstance.OpenDNSSECInstance().is_configured():
+            self.ismaster = True
+            self.odsmgr = ODSMgr()
+        else:
+            self.ismaster = False
+
         self.bindmgr = BINDMgr(self.api)
         self.init_done = False
         SyncReplConsumer.__init__(self, *args, **kwargs)
@@ -80,7 +88,7 @@ class KeySyncer(SyncReplConsumer):
     def syncrepl_refreshdone(self):
         self.log.info('Initial LDAP dump is done, sychronizing with ODS and BIND')
         self.init_done = True
-        self.odsmgr.sync()
+        self.ods_sync()
         self.bindmgr.sync()
 
     # idnsSecKey wrapper
@@ -102,15 +110,24 @@ class KeySyncer(SyncReplConsumer):
 
     # idnsZone wrapper
     def zone_add(self, uuid, dn, newattrs):
+        if not self.ismaster:
+            return
+
         if self.__is_dnssec_enabled(newattrs):
             self.odsmgr.ldap_event('add', uuid, newattrs)
         self.ods_sync()
 
     def zone_del(self, uuid, dn, oldattrs):
+        if not self.ismaster:
+            return
+
         if self.__is_dnssec_enabled(oldattrs):
             self.odsmgr.ldap_event('del', uuid, oldattrs)
         self.ods_sync()
 
     def ods_sync(self):
+        if not self.ismaster:
+            return
+
         if self.init_done:
             self.odsmgr.sync()
