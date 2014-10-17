@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import binascii
+from binascii import hexlify
 import collections
 import sys
 import time
@@ -19,7 +19,7 @@ import uuid
 def uri_escape(val):
     """convert val to %-notation suitable for ID component in URI"""
     assert len(val) > 0, "zero-length URI component detected"
-    hexval = binascii.hexlify(val)
+    hexval = hexlify(val)
     out = '%'
     out += '%'.join(hexval[i:i+2] for i in range(0, len(hexval), 2))
     return out
@@ -174,6 +174,7 @@ class MasterKey(Key):
         # TODO: replace this with 'autogenerate' to prevent collisions
         uuid_rdn = DN('ipk11UniqueId=%s' % uuid.uuid1())
         entry_dn = DN(uuid_rdn, self.ldaphsm.base_dn)
+        # TODO: add ipaWrappingMech attribute
         entry = self.ldap.make_entry(entry_dn,
                    objectClass=['ipaSecretKeyObject', 'ipk11Object'],
                    ipaSecretKey=data,
@@ -196,8 +197,7 @@ class LDAPHSM(AbstractHSM):
         self.log = log
         self.cache_replica_pubkeys_wrap = None
         self.cache_masterkeys = None
-        self.cache_zone_pubkeys = None
-        self.cache_zone_privkeys = None
+        self.cache_zone_keypairs = None
 
     def _get_key_dict(self, key_type, ldap_filter):
         try:
@@ -236,7 +236,7 @@ class LDAPHSM(AbstractHSM):
 
     def _update_keys(self):
         for cache in [self.cache_masterkeys, self.cache_replica_pubkeys_wrap,
-                self.cache_zone_privkeys, self.cache_zone_pubkeys]:
+                self.cache_zone_keypairs]:
             if cache:
                 for key in cache.itervalues():
                     self._update_key(key)
@@ -246,8 +246,7 @@ class LDAPHSM(AbstractHSM):
         self._update_keys()
         self.cache_masterkeys = None
         self.cache_replica_pubkeys_wrap = None
-        self.cache_zone_privkeys = None
-        self.cache_zone_pubkeys = None
+        self.cache_zone_keypairs = None
 
     def _import_keys_metadata(self, source_keys):
         """import key metadata from Key-compatible objects
@@ -256,26 +255,25 @@ class LDAPHSM(AbstractHSM):
         object
 
         :param: source_keys is iterable of (Key object, PKCS#11 object class)"""
-        obj_classes = ['ipk11Object']
+
+        entry_dn = DN('ipk11UniqueId=autogenerate', self.base_dn)
+        entry = self.ldap.make_entry(entry_dn, objectClass=['ipk11Object'])
+        new_key = Key(entry, self.ldap, self)
 
         for source_key, pkcs11_class in source_keys:
             if pkcs11_class == ipapkcs11.KEY_CLASS_SECRET_KEY:
-                obj_classes.append('ipk11SecretKey')
+                entry['objectClass'].append('ipk11SecretKey')
+                # TODO: add ipk11KeyType attribute
             elif pkcs11_class == ipapkcs11.KEY_CLASS_PUBLIC_KEY:
-                obj_classes.append('ipk11PublicKey')
+                entry['objectClass'].append('ipk11PublicKey')
             elif pkcs11_class == ipapkcs11.KEY_CLASS_PRIVATE_KEY:
-                obj_classes.append('ipk11PrivateKey')
+                entry['objectClass'].append('ipk11PrivateKey')
             else:
                 raise AssertionError('unsupported object class %s' % pkcs11_class)
 
-            entry_dn = DN('ipk11UniqueId=autogenerate', self.base_dn)
-            entry = self.ldap.make_entry(entry_dn, objectClass=obj_classes,
-                        ipk11UniqueId='autogenerate')
-
-            new_key = Key(entry, self.ldap, self)
             populate_pkcs11_metadata(source_key, new_key)
-            new_key._cleanup_key()
-            return new_key
+        new_key._cleanup_key()
+        return new_key
 
     def import_master_key(self, mkey):
         new_key = self._import_keys_metadata(
@@ -293,12 +291,13 @@ class LDAPHSM(AbstractHSM):
         new_key.entry['ipaPrivateKey'] = privkey_wrapped_data
         new_key.entry['ipaWrappingKey'] = 'pkcs11:id=%s;type=secret' \
                 % uri_escape(master_key_id)
+        # TODO: add ipaWrappingMech attribute
 
         new_key.entry['objectClass'].append('ipaPublicKeyObject')
         new_key.entry['ipaPublicKey'] = pubkey_data
 
         self.ldap.add_entry(new_key.entry)
-        self.log.debug('imported zone key: %s', new_key.entry)
+        self.log.debug('imported zone key id: 0x%s', hexlify(new_key['ipk11id']))
 
     @property
     def replica_pubkeys_wrap(self):
@@ -325,7 +324,7 @@ class LDAPHSM(AbstractHSM):
                 'secret key dn="%s" ipk11id=0x%s ipk11label="%s" with ipk11UnWrap = TRUE does not have '\
                 '"%s" key label' % (
                     key.entry.dn,
-                    binascii.hexlify(key['ipk11id']),
+                    hexlify(key['ipk11id']),
                     str(key['ipk11label']),
                     prefix)
 
@@ -333,23 +332,12 @@ class LDAPHSM(AbstractHSM):
         return keys
 
     @property
-    def zone_pubkeys(self):
-        if self.cache_zone_pubkeys:
-            return self.cache_zone_pubkeys
+    def zone_keypairs(self):
+        if self.cache_zone_keypairs:
+            return self.cache_zone_keypairs
 
-        self.cache_zone_pubkeys = self._filter_zone_keys(
+        self.cache_zone_keypairs = self._filter_zone_keys(
                 self._get_key_dict(Key,
-                '(&(objectClass=ipk11PublicKey)(objectClass=ipaPublicKeyObject))'))
+                '(&(objectClass=ipk11PrivateKey)(objectClass=ipaPrivateKeyObject)(objectClass=ipk11PublicKey)(objectClass=ipaPublicKeyObject))'))
 
-        return self.cache_zone_pubkeys
-
-    @property
-    def zone_privkeys(self):
-        if self.cache_zone_privkeys:
-            return self.cache_zone_privkeys
-
-        self.cache_zone_privkeys = self._filter_zone_keys(
-                self._get_key_dict(Key,
-                '(&(objectClass=ipk11PrivateKey)(objectClass=ipaPrivateKeyObject))'))
-
-        return self.cache_zone_privkeys
+        return self.cache_zone_keypairs
