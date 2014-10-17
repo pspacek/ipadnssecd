@@ -181,8 +181,8 @@ class MasterKey(Key):
                    ipaWrappingKey=wrapping_key_uri)
 
         self.log.info('adding master key 0x%s wrapped with replica key 0x%s to %s',
-                binascii.hexlify(self['ipk11id']),
-                binascii.hexlify(replica_key_id),
+                hexlify(self['ipk11id']),
+                hexlify(replica_key_id),
                 entry_dn)
         self.ldap.add_entry(entry)
         if 'ipaSecretKeyRef' not in self.entry:
@@ -216,7 +216,7 @@ class LDAPHSM(AbstractHSM):
 
             assert 'ipk11id' in o, 'key is missing ipk11Id in %s' % key.entry.dn
             key_id = key['ipk11id']
-            assert key_id not in keys, 'duplicate ipk11Id=0x%s in "%s" and "%s"' % (binascii.hexlify(key_id), key.entry.dn, keys[key_id].entry.dn)
+            assert key_id not in keys, 'duplicate ipk11Id=0x%s in "%s" and "%s"' % (hexlify(key_id), key.entry.dn, keys[key_id].entry.dn)
             assert 'ipk11label' in key, 'key "%s" is missing ipk11Label' % key.entry.dn
             assert 'objectclass' in key.entry, 'key "%s" is missing objectClass attribute' % key.entry.dn
 
