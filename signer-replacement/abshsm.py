@@ -14,7 +14,7 @@ attrs_id2name = {
     _ipap11helper.CKA_EXTRACTABLE: 'ipk11extractable',
     _ipap11helper.CKA_ID: 'ipk11id',
     #_ipap11helper.CKA_KEY_GEN_MECHANISM: 'ipk11keygenmechanism',
-    #_ipap11helper.CKA_KEY_TYPE: 'ipk11keytype',
+    _ipap11helper.CKA_KEY_TYPE: 'ipk11keytype',
     _ipap11helper.CKA_LABEL: 'ipk11label',
     _ipap11helper.CKA_LOCAL: 'ipk11local',
     _ipap11helper.CKA_MODIFIABLE: 'ipk11modifiable',
@@ -38,6 +38,29 @@ attrs_id2name = {
 }
 
 attrs_name2id = dict(zip(attrs_id2name.values(), attrs_id2name.keys()))
+
+# attribute:
+# http://www.freeipa.org/page/V4/PKCS11_in_LDAP/Schema#ipk11KeyType
+#
+# mapping table:
+# http://www.freeipa.org/page/V4/PKCS11_in_LDAP/Schema#CK_MECHANISM_TYPE
+keytype_name2id = {
+        "rsa": _ipap11helper.KEY_TYPE_RSA,
+        "aes": _ipap11helper.KEY_TYPE_AES,
+        }
+
+keytype_id2name = dict(zip(keytype_name2id.values(), keytype_name2id.keys()))
+
+wrappingmech_name2id = {
+        "rsaPkcs": _ipap11helper.MECH_RSA_PKCS,
+        "rsaPkcsOaep": _ipap11helper.MECH_RSA_PKCS_OAEP,
+        "aesKeyWrap": _ipap11helper.MECH_AES_KEY_WRAP,
+        "aesKeyWrapPad": _ipap11helper.MECH_AES_KEY_WRAP_PAD
+        }
+
+wrappingmech_id2name = dict(zip(wrappingmech_name2id.values(),
+    wrappingmech_name2id.keys()))
+
 
 bool_attr_names = set([
     'ipk11alwaysauthenticate',
@@ -95,6 +118,48 @@ def populate_pkcs11_metadata(source, target):
     for attr in attrs_name2id:
         if attr in source:
             target[attr] = source[attr]
+
+def ldap2p11helper_api_params(ldap_key):
+    """prepare dict with metadata parameters suitable for key unwrapping"""
+    unwrap_params = {}
+
+    # some attributes are just renamed
+    direct_param_map = {
+            "ipk11label": "label",
+            "ipk11id": "id",
+            "ipaprivatekey": "data",
+            "ipk11copyable": "cka_copyable",
+            "ipk11decrypt": "cka_decrypt",
+            "ipk11derive": "cka_derive",
+            "ipk11encrypt": "cka_encrypt",
+            "ipk11extractable": "cka_extractable",
+            "ipk11modifiable": "cka_modifiable",
+            "ipk11private": "cka_private",
+            "ipk11sensitive": "cka_sensitive",
+            "ipk11sign": "cka_sign",
+            "ipk11unwrap": "cka_unwrap",
+            "ipk11verify": "cka_verify",
+            "ipk11wrap": "cka_wrap",
+            "ipk11wrapwithtrusted": "cka_wrap_with_trusted"
+            }
+
+    for ldap_name, p11h_name in direct_param_map.iteritems():
+        if ldap_name in ldap_key:
+            unwrap_params[p11h_name] = ldap_key[ldap_name]
+
+    # and some others needs conversion
+
+    indirect_param_map = {
+            "ipk11keytype": ("keytype", keytype_name2id),
+            "unwrapping_key": ("wrapping_mech", wrappingmech_name2id),
+            }
+
+    for ldap_name, rules in indirect_param_map.iteritems():
+        p11h_name, mapping = rules
+        if ldap_name in ldap_key:
+            unwrap_params[p11h_name] = mapping[ldap_key[ldap_name]]
+
+    return unwrap_params
 
 
 class AbstractHSM(object):

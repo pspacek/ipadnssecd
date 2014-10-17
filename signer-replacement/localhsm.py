@@ -8,7 +8,7 @@ import sys
 import time
 
 import _ipap11helper
-from abshsm import attrs_name2id, attrs_id2name, AbstractHSM
+from abshsm import attrs_name2id, attrs_id2name, AbstractHSM, keytype_id2name, keytype_name2id
 
 class Key(collections.MutableMapping):
     def __init__(self, p11, handle):
@@ -30,12 +30,20 @@ class Key(collections.MutableMapping):
                     % hexlify(cka_id))
 
     def __getitem__(self, key):
+        key = key.lower()
         try:
-            return self.p11.get_attribute(self.handle, attrs_name2id[key])
+            value = self.p11.get_attribute(self.handle, attrs_name2id[key])
+            if key == 'ipk11keytype':
+                value = keytype_id2name[value]
+            return value
         except _ipap11helper.NotFound:
             raise KeyError()
 
     def __setitem__(self, key, value):
+        key = key.lower()
+        if key == 'ipk11keytype':
+            value = keytype_name2id[value]
+
         return self.p11.set_attribute(self.handle, attrs_name2id[key], value)
 
     def __delitem__(self, key):
