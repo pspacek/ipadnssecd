@@ -140,7 +140,6 @@ ipautil.kinit_hostprincipal(paths.IPA_DNSKEYSYNCD_KEYTAB, WORKDIR, PRINCIPAL)
 log.debug('Got TGT')
 
 # LDAP initialization
-dns_dn = DN(ipalib.api.env.container_dns, ipalib.api.env.basedn)
 ldap = ipalib.api.Backend[ldap2]
 # fixme
 log.debug('Connecting to LDAP')
@@ -149,8 +148,8 @@ log.debug('Connected')
 
 
 ### DNSSEC master: key synchronization
-# TODO: move to api.env
-ldapkeydb = LdapKeyDB(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
+ldapkeydb = LdapKeyDB(log, ldap,
+        DN(container_dnssec_keys, ipalib.api.env.basedn))
 
 # TODO: slot number could be configurable
 localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
