@@ -1,3 +1,0 @@
-# clean up
-dnf remove opendnssec softhsm -y
-rm -rvf /{var,etc}/{softhsm,opendnssec}*

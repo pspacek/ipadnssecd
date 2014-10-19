@@ -1,4 +1,0 @@
-ipa service-add ipadnssecd/$(hostname)
-sudo ipa-getkeytab -s $(hostname) -p ipadnssecd/$(hostname) -k /etc/ipa/ipadnssecd.keytab
-sudo chown root:ods /etc/ipa/ipadnssecd.keytab
-sudo chmod ug=rw,o= /etc/ipa/ipadnssecd.keytab

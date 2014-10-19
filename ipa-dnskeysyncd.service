@@ -3,7 +3,7 @@ Description=IPA key daemon
 
 [Service]
 Environment='SOFTHSM2_CONF=/etc/ipa/dnssec/softhsm2.conf'
-ExecStart=/usr/share/ipa/ipadnssecd/keydaemon.py
+ExecStart=/usr/share/ipa/ipadnssecd/ipa-dnskeysyncd.py
 User=ods
 Group=named
 SupplementaryGroups=ods
