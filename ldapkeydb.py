@@ -289,7 +289,7 @@ class LdapKeyDB(AbstractHSM):
 
         new_key.entry['objectClass'].append('ipaPrivateKeyObject')
         new_key.entry['ipaPrivateKey'] = privkey_wrapped_data
-        new_key.entry['ipaWrappingKey'] = 'pkcs11:id=%s;type=secret' \
+        new_key.entry['ipaWrappingKey'] = 'pkcs11:id=%s;type=secret-key' \
                 % uri_escape(master_key_id)
         new_key.entry['ipaWrappingMech'] = wrapping_mech
 
