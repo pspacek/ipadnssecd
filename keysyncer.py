@@ -55,6 +55,12 @@ class KeySyncer(SyncReplConsumer):
         """Test if LDAP DNS zone with given attributes is DNSSEC enabled."""
         return self.__get_signing_attr(attrs) == 'TRUE'
 
+    def __is_replica_pubkey(self, attrs):
+        vals = attrs.get('ipk11label', [])
+        if len(vals) != 1:
+            return False
+        return vals[0].startswith('dnssec-replica:')
+
     def application_add(self, uuid, dn, newattrs):
         objclass = self._get_objclass(newattrs)
         if objclass == 'idnszone':
@@ -62,7 +68,7 @@ class KeySyncer(SyncReplConsumer):
         elif objclass == 'idnsseckey':
             self.key_meta_add(uuid, dn, newattrs)
         elif objclass == 'ipk11publickey' and \
-                newattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+                self.__is_replica_pubkey(newattrs):
             self.hsm_master_sync()
 
     def application_del(self, uuid, dn, oldattrs):
@@ -72,7 +78,7 @@ class KeySyncer(SyncReplConsumer):
         elif objclass == 'idnsseckey':
             self.key_meta_del(uuid, dn, oldattrs)
         elif objclass == 'ipk11publickey' and \
-                oldattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+                self.__is_replica_pubkey(oldattrs):
             self.hsm_master_sync()
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
@@ -94,13 +100,15 @@ class KeySyncer(SyncReplConsumer):
             self.key_metadata_sync(uuid, dn, oldattrs, newattrs)
 
         elif objclass == 'ipk11publickey' and \
-                newattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+                self.__is_replica_pubkey(newattrs):
             self.hsm_master_sync()
 
     def syncrepl_refreshdone(self):
         self.log.info('Initial LDAP dump is done, sychronizing with ODS and BIND')
         self.init_done = True
         self.ods_sync()
+        self.hsm_replica_sync()
+        self.hsm_master_sync()
         self.bindmgr.sync()
 
     # idnsSecKey wrapper
@@ -154,6 +162,8 @@ class KeySyncer(SyncReplConsumer):
         """Download keys from LDAP to local HSM."""
         if self.ismaster:
             return
+        if not self.init_done:
+            return
 
         # TODO: paths
         ipautil.run(['/usr/libexec/ipa-dnskeysync-replica'])
@@ -163,6 +173,8 @@ class KeySyncer(SyncReplConsumer):
         """Download replica keys from LDAP to local HSM
         & upload master and zone keys to LDAP."""
         if not self.ismaster:
+            return
+        if not self.init_done:
             return
 
         # TODO: paths
