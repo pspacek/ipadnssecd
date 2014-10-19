@@ -5,9 +5,11 @@ After=ipa-ods-exporter.socket
 
 [Service]
 EnvironmentFile=/etc/sysconfig/ipa-ods-exporter
-ExecStart=/usr/share/ipa/ipadnssecd/ipa-ods-exporter.py
+ExecStart=/usr/libexec/ipa-ods-exporter
 User=ods
 PrivateTmp=yes
+Restart=on-failure
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target

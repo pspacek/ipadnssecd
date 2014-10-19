@@ -3,11 +3,13 @@ Description=IPA key daemon
 
 [Service]
 EnvironmentFile=/etc/sysconfig/ipa-dnskeysyncd
-ExecStart=/usr/share/ipa/ipadnssecd/ipa-dnskeysyncd.py
+ExecStart=/usr/libexec/ipa-dnskeysyncd
 User=ods
 Group=named
 SupplementaryGroups=ods
 PrivateTmp=yes
+Restart=on-failure
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target
