@@ -200,7 +200,7 @@ def sync_set_metadata_2ldap(log, source_set, target_set):
     matching_keys = set(source_set.keys()).intersection(set(target_set.keys()))
     log.info("keys in local HSM & LDAP: %s", hex_set(matching_keys))
     for key_id in matching_keys:
-        sync_pkcs11_metadata(source_set[key_id], target_set[key_id])
+        sync_pkcs11_metadata(log, source_set[key_id], target_set[key_id])
 
 def ldap2master_replica_keys_sync(log, ldapkeydb, localhsm):
     """LDAP=>master's local HSM replica key synchronization"""
@@ -228,7 +228,7 @@ def ldap2master_replica_keys_sync(log, ldapkeydb, localhsm):
         localhsm.replica_pubkeys_wrap[key_id]['ipk11wrap'] = False
 
     # synchronize replica key attributes from LDAP to local HSM
-    sync_set_metadata(log, localhsm.replica_pubkeys_wrap,
+    sync_set_metadata_2ldap(log, localhsm.replica_pubkeys_wrap,
             ldapkeydb.replica_pubkeys_wrap)
 
 def master2ldap_master_keys_sync(log, ldapkeydb, localhsm):
@@ -250,7 +250,7 @@ def master2ldap_master_keys_sync(log, ldapkeydb, localhsm):
     # synchronize master key metadata to LDAP
     for mkey_id, mkey_local in localhsm.master_keys.iteritems():
         log.debug('synchronizing master key metadata: 0x%s', hexlify(mkey_id))
-        sync_pkcs11_metadata(mkey_local, ldapkeydb.master_keys[mkey_id])
+        sync_pkcs11_metadata(log, mkey_local, ldapkeydb.master_keys[mkey_id])
 
     # re-wrap all master keys in LDAP with new replica keys (as necessary)
     enabled_replica_key_ids = set(localhsm.replica_pubkeys_wrap.keys())
@@ -317,8 +317,8 @@ def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
         ldapkeydb.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
                 wrapping_mech, mkey['ipk11id'])
 
-    sync_set_metadata(log, pubkeys_local, keypairs_ldap)
-    sync_set_metadata(log, privkeys_local, keypairs_ldap)
+    sync_set_metadata_2ldap(log, pubkeys_local, keypairs_ldap)
+    sync_set_metadata_2ldap(log, privkeys_local, keypairs_ldap)
     ldapkeydb.flush()
 
 
