@@ -100,10 +100,10 @@ class Key(collections.MutableMapping):
         - non-normalized attribute names
         - boolean attributes returned as strings
     """
-    def __init__(self, entry, ldap, ldaphsm):
+    def __init__(self, entry, ldap, ldapkeydb):
         self.entry = entry
         self.ldap = ldap
-        self.ldaphsm = ldaphsm
+        self.ldapkeydb = ldapkeydb
         self.log = ldap.log.getChild(__name__)
 
     def __getitem__(self, key):
@@ -141,13 +141,13 @@ class Key(collections.MutableMapping):
 
 class ReplicaKey(Key):
     # TODO: object class assert
-    def __init__(self, entry, ldap, ldaphsm):
-        super(ReplicaKey, self).__init__(entry, ldap, ldaphsm)
+    def __init__(self, entry, ldap, ldapkeydb):
+        super(ReplicaKey, self).__init__(entry, ldap, ldapkeydb)
 
 class MasterKey(Key):
     # TODO: object class assert
-    def __init__(self, entry, ldap, ldaphsm):
-        super(MasterKey, self).__init__(entry, ldap, ldaphsm)
+    def __init__(self, entry, ldap, ldapkeydb):
+        super(MasterKey, self).__init__(entry, ldap, ldapkeydb)
 
     @property
     def wrapped_entries(self):
@@ -173,7 +173,7 @@ class MasterKey(Key):
                 % uri_escape(replica_key_id)
         # TODO: replace this with 'autogenerate' to prevent collisions
         uuid_rdn = DN('ipk11UniqueId=%s' % uuid.uuid1())
-        entry_dn = DN(uuid_rdn, self.ldaphsm.base_dn)
+        entry_dn = DN(uuid_rdn, self.ldapkeydb.base_dn)
         # TODO: add ipaWrappingMech attribute
         entry = self.ldap.make_entry(entry_dn,
                    objectClass=['ipaSecretKeyObject', 'ipk11Object'],
@@ -191,7 +191,7 @@ class MasterKey(Key):
         self.entry.setdefault('ipaSecretKeyRef', []).append(entry_dn)
 
 
-class LDAPHSM(AbstractHSM):
+class LdapKeyDB(AbstractHSM):
     def __init__(self, log, ldap, base_dn):
         self.ldap = ldap
         self.base_dn = base_dn

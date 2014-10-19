@@ -32,7 +32,7 @@ from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
 from abshsm import sync_pkcs11_metadata, wrappingmech_name2id
-from ldaphsm import LDAPHSM
+from ldapkeydb import LdapKeyDB
 from localhsm import LocalHSM
 import _ipap11helper
 
@@ -202,17 +202,17 @@ def sync_set_metadata(log, source_set, target_set):
     for key_id in matching_keys:
         sync_pkcs11_metadata(source_set[key_id], target_set[key_id])
 
-def ldap2master_replica_keys_sync(log, ldaphsm, localhsm):
+def ldap2master_replica_keys_sync(log, ldapkeydb, localhsm):
     """LDAP=>master's local HSM replica key synchronization"""
     # import new replica keys from LDAP
     log = log.getChild('ldap2master_replica')
-    log.debug("replica pub keys in LDAP: %s", hex_set(ldaphsm.replica_pubkeys_wrap))
+    log.debug("replica pub keys in LDAP: %s", hex_set(ldapkeydb.replica_pubkeys_wrap))
     log.debug("replica pub keys in SoftHSM: %s", hex_set(localhsm.replica_pubkeys_wrap))
-    new_replica_keys = set(ldaphsm.replica_pubkeys_wrap.keys()) \
+    new_replica_keys = set(ldapkeydb.replica_pubkeys_wrap.keys()) \
             - set(localhsm.replica_pubkeys_wrap.keys())
     log.info("new replica keys in LDAP: %s", hex_set(new_replica_keys))
     for key_id in new_replica_keys:
-        new_key_ldap = ldaphsm.replica_pubkeys_wrap[key_id]
+        new_key_ldap = ldapkeydb.replica_pubkeys_wrap[key_id]
         log.error('label=%s,  id=%s, data=%s',
                 new_key_ldap['ipk11label'],
                 hexlify(new_key_ldap['ipk11id']),
@@ -221,7 +221,7 @@ def ldap2master_replica_keys_sync(log, ldaphsm, localhsm):
 
     # set CKA_WRAP = FALSE for all replica keys removed from LDAP
     removed_replica_keys = set(localhsm.replica_pubkeys_wrap.keys()) \
-            - set(ldaphsm.replica_pubkeys_wrap.keys())
+            - set(ldapkeydb.replica_pubkeys_wrap.keys())
     log.info("obsolete replica keys in local HSM: %s",
             hex_set(removed_replica_keys))
     for key_id in removed_replica_keys:
@@ -229,34 +229,34 @@ def ldap2master_replica_keys_sync(log, ldaphsm, localhsm):
 
     # synchronize replica key attributes from LDAP to local HSM
     sync_set_metadata(log, localhsm.replica_pubkeys_wrap,
-            ldaphsm.replica_pubkeys_wrap)
+            ldapkeydb.replica_pubkeys_wrap)
 
-def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
+def master2ldap_master_keys_sync(log, ldapkeydb, localhsm):
     ## master key -> LDAP synchronization
     # export new master keys to LDAP
     new_master_keys = set(localhsm.master_keys.keys()) \
-            - set(ldaphsm.master_keys.keys())
+            - set(ldapkeydb.master_keys.keys())
     log.debug("master keys in local HSM: %s", hex_set(localhsm.master_keys.keys()))
-    log.debug("master keys in LDAP HSM: %s", hex_set(ldaphsm.master_keys.keys()))
+    log.debug("master keys in LDAP HSM: %s", hex_set(ldapkeydb.master_keys.keys()))
     log.debug("new master keys in local HSM: %s", hex_set(new_master_keys))
     for mkey_id in new_master_keys:
         mkey = localhsm.master_keys[mkey_id]
-        ldaphsm.import_master_key(mkey)
+        ldapkeydb.import_master_key(mkey)
 
     # re-fill cache with keys we just added
-    ldaphsm.flush()
-    log.debug('master keys in LDAP after flush: %s', hex_set(ldaphsm.master_keys))
+    ldapkeydb.flush()
+    log.debug('master keys in LDAP after flush: %s', hex_set(ldapkeydb.master_keys))
 
     # synchronize master key metadata to LDAP
     for mkey_id, mkey_local in localhsm.master_keys.iteritems():
         log.debug('synchronizing master key metadata: 0x%s', hexlify(mkey_id))
-        sync_pkcs11_metadata(mkey_local, ldaphsm.master_keys[mkey_id])
+        sync_pkcs11_metadata(mkey_local, ldapkeydb.master_keys[mkey_id])
 
     # re-wrap all master keys in LDAP with new replica keys (as necessary)
     enabled_replica_key_ids = set(localhsm.replica_pubkeys_wrap.keys())
     log.debug('enabled replica key ids: %s', hex_set(enabled_replica_key_ids))
 
-    for mkey_id, mkey_ldap in ldaphsm.master_keys.iteritems():
+    for mkey_id, mkey_ldap in ldapkeydb.master_keys.iteritems():
         log.debug('processing master key data: 0x%s', hexlify(mkey_id))
 
         # check that all active replicas have own copy of master key
@@ -288,12 +288,12 @@ def master2ldap_master_keys_sync(log, ldaphsm, localhsm):
             mkey_ldap.add_wrapped_data(keydata, SECRETKEY_WRAPPING_MECH,
                     replica_key_id)
 
-    ldaphsm.flush()
+    ldapkeydb.flush()
 
-def master2ldap_zone_keys_sync(log, ldaphsm, localhsm):
+def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
     # synchroniza zone keys
     log = log.getChild('master2ldap_zone_keys')
-    keypairs_ldap = ldaphsm.zone_keypairs
+    keypairs_ldap = ldapkeydb.zone_keypairs
 
     pubkeys_local = localhsm.zone_pubkeys
     privkeys_local = localhsm.zone_privkeys
@@ -314,12 +314,12 @@ def master2ldap_zone_keys_sync(log, ldaphsm, localhsm):
         privkey_data = localhsm.p11.export_wrapped_key(privkey.handle,
                 wrapping_key=mkey.handle,
                 wrapping_mech=wrapping_mech)
-        ldaphsm.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
+        ldapkeydb.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
                 wrapping_mech, mkey['ipk11id'])
 
     sync_set_metadata(log, pubkeys_local, keypairs_ldap)
     sync_set_metadata(log, privkeys_local, keypairs_ldap)
-    ldaphsm.flush()
+    ldapkeydb.flush()
 
 
 def hex_set(s):
@@ -398,13 +398,13 @@ log.debug('Connected')
 
 
 ### DNSSEC master: key synchronization
-ldaphsm = LDAPHSM(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
+ldapkeydb = LdapKeyDB(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
 localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
         open(paths.DNSSEC_SOFTHSM_PIN).read())
 
-ldap2master_replica_keys_sync(log, ldaphsm, localhsm)
-master2ldap_master_keys_sync(log, ldaphsm, localhsm)
-master2ldap_zone_keys_sync(log, ldaphsm, localhsm)
+ldap2master_replica_keys_sync(log, ldapkeydb, localhsm)
+master2ldap_master_keys_sync(log, ldapkeydb, localhsm)
+master2ldap_zone_keys_sync(log, ldapkeydb, localhsm)
 
 
 ### DNSSEC master: DNSSEC key metadata upload

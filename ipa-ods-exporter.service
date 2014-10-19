@@ -4,8 +4,10 @@ Wants=ipa-ods-exporter.socket
 After=ipa-ods-exporter.socket
 
 [Service]
-ExecStart=/usr/share/ipa/ipadnssecd/signer-replacement/signerd.py
+Environment='SOFTHSM2_CONF=/etc/ipa/dnssec/softhsm2.conf'
+ExecStart=/usr/share/ipa/ipadnssecd/ipa-ods-exporter.py
 User=ods
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
