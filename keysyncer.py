@@ -156,7 +156,7 @@ class KeySyncer(SyncReplConsumer):
             return
 
         # TODO: paths
-        ipautil.run(['/usr/libexec/ipa-dnskeysync-replica.py'])
+        ipautil.run(['/usr/libexec/ipa-dnskeysync-replica'])
 
     # triggered by modification to ipk11PublicKey objects
     def hsm_master_sync(self):
