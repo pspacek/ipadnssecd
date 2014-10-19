@@ -309,13 +309,12 @@ def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
         pubkey = pubkeys_local[zkey_id]
         pubkey_data = localhsm.p11.export_public_key(pubkey.handle)
 
-        wrapping_mech = wrappingmech_name2id[PRIVKEY_WRAPPING_MECH]
         privkey = privkeys_local[zkey_id]
         privkey_data = localhsm.p11.export_wrapped_key(privkey.handle,
                 wrapping_key=mkey.handle,
-                wrapping_mech=wrapping_mech)
+                wrapping_mech=wrappingmech_name2id[PRIVKEY_WRAPPING_MECH])
         ldapkeydb.import_zone_key(pubkey, pubkey_data, privkey, privkey_data,
-                wrapping_mech, mkey['ipk11id'])
+                PRIVKEY_WRAPPING_MECH, mkey['ipk11id'])
 
     sync_set_metadata_2ldap(log, pubkeys_local, keypairs_ldap)
     sync_set_metadata_2ldap(log, privkeys_local, keypairs_ldap)
