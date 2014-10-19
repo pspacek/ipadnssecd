@@ -7,6 +7,8 @@ from pprint import pprint
 import sys
 import time
 
+from ipaplatform.paths import paths
+
 import _ipap11helper
 from abshsm import attrs_name2id, attrs_id2name, AbstractHSM, keytype_id2name, keytype_name2id
 
@@ -167,7 +169,8 @@ class LocalHSM(AbstractHSM):
 
 
 if __name__ == '__main__':
-    localhsm = LocalHSM('/usr/lib64/pkcs11/libsofthsm2.so', 0, open('/var/lib/ipa/dnssec/softhsm_pin').read())
+    localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
+            open(paths.DNSSEC_SOFTHSM_PIN).read())
 
     print 'replica public keys: CKA_WRAP = TRUE'
     print '===================================='
