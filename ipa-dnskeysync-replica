@@ -149,7 +149,7 @@ log.debug('Connected')
 
 ### DNSSEC master: key synchronization
 ldapkeydb = LdapKeyDB(log, ldap,
-        DN(container_dnssec_keys, ipalib.api.env.basedn))
+        DN(ipalib.api.env.container_dnssec_keys, ipalib.api.env.basedn))
 
 # TODO: slot number could be configurable
 localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
