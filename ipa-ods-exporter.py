@@ -347,11 +347,17 @@ def receive_zone_name(log):
                       'HSM synchronization was finished and the command ' \
                       'will be ignored.\n' % cmd)
             log.info('Ignoring unsupported command "%s"', cmd)
-            raise NotImplementedError('Command "%s" is not supported' % cmd)
+            sys.exit(0)
+
+        elif cmd == 'ipa-hsm-update':
+            conn.send('HSM update finished, exiting.\n')
+            sys.exit(0)
+
         else:
             conn.send('Request queued\n')
             zone_name = cmd2ods_zone_name(cmd)
             log.info('Processing command: "%s"', cmd)
+
     finally:
         # Reply & close connection early.
         # This is necessary to let Enforcer to unlock the ODS DB.
@@ -419,9 +425,6 @@ except KeyError as e:
     print 'Use "ods-signer" command line utility to synchronize ' \
           'DNS zone keys and metadata.'
     print 'Error: %s' % e
-    sys.exit(0)
-
-except NotImplementedError:
     sys.exit(0)
 
 ods_keys = get_ods_keys(zone_name)

@@ -69,7 +69,7 @@ basedn = DN(api.env.container_dns, api.env.basedn)
 ldap_url = ldapurl.LDAPUrl(api.env.ldap_uri)
 ldap_url.dn = str(basedn)
 ldap_url.scope = ldapurl.LDAP_SCOPE_SUBTREE
-ldap_url.filterstr = '(|(objectClass=idnsZone)(objectClass=idnsSecKey))'
+ldap_url.filterstr = '(|(objectClass=idnsZone)(objectClass=idnsSecKey)(objectClass=ipk11PublicKey))'
 log.debug('LDAP URL: %s', ldap_url.unparse())
 
 # Real work

@@ -37,7 +37,7 @@ class KeySyncer(SyncReplConsumer):
 
         Given set of attributes has to have exactly one supported object class.
         """
-        supported_objclasses = set(['idnszone', 'idnsseckey'])
+        supported_objclasses = set(['idnszone', 'idnsseckey', 'ipk11publickey'])
         present_objclasses = set([o.lower() for o in attrs[OBJCLASS_ATTR]]).intersection(supported_objclasses)
         assert len(present_objclasses) == 1, attrs[OBJCLASS_ATTR]
         return present_objclasses.pop()
@@ -61,6 +61,9 @@ class KeySyncer(SyncReplConsumer):
             self.zone_add(uuid, dn, newattrs)
         elif objclass == 'idnsseckey':
             self.key_meta_add(uuid, dn, newattrs)
+        elif objclass == 'ipk11publickey' and \
+                newattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+            self.hsm_master_sync()
 
     def application_del(self, uuid, dn, oldattrs):
         objclass = self._get_objclass(oldattrs)
@@ -68,6 +71,9 @@ class KeySyncer(SyncReplConsumer):
             self.zone_del(uuid, dn, oldattrs)
         elif objclass == 'idnsseckey':
             self.key_meta_del(uuid, dn, oldattrs)
+        elif objclass == 'ipk11publickey' and \
+                oldattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+            self.hsm_master_sync()
 
     def application_sync(self, uuid, dn, newattrs, oldattrs):
         objclass = self._get_objclass(oldattrs)
@@ -87,6 +93,10 @@ class KeySyncer(SyncReplConsumer):
         elif objclass == 'idnsseckey':
             self.key_metadata_sync(uuid, dn, oldattrs, newattrs)
 
+        elif objclass == 'ipk11publickey' and \
+                newattrs.get('ipk11label', '').startswith('dnssec-replica:'):
+            self.hsm_master_sync()
+
     def syncrepl_refreshdone(self):
         self.log.info('Initial LDAP dump is done, sychronizing with ODS and BIND')
         self.init_done = True
@@ -98,14 +108,14 @@ class KeySyncer(SyncReplConsumer):
     # i.e. it is not necessary to re-download blobs because of change in DNSSEC
     # metadata - DNSSEC flags or timestamps.
     def key_meta_add(self, uuid, dn, newattrs):
-        self.hsm_sync()
+        self.hsm_replica_sync()
         self.bindmgr.ldap_event('add', uuid, newattrs)
         self.bindmgr_sync()
 
     def key_meta_del(self, uuid, dn, oldattrs):
         self.bindmgr.ldap_event('del', uuid, oldattrs)
         self.bindmgr_sync()
-        self.hsm_sync()
+        self.hsm_replica_sync()
 
     def key_metadata_sync(self, uuid, dn, oldattrs, newattrs):
         self.bindmgr.ldap_event('mod', uuid, newattrs)
@@ -139,10 +149,21 @@ class KeySyncer(SyncReplConsumer):
         if self.init_done:
             self.odsmgr.sync()
 
-    def hsm_sync(self):
+    # triggered by modification to idnsSecKey objects
+    def hsm_replica_sync(self):
         """Download keys from LDAP to local HSM."""
         if self.ismaster:
             return
 
         # TODO: paths
         ipautil.run(['/usr/libexec/ipa-dnskeysync-replica.py'])
+
+    # triggered by modification to ipk11PublicKey objects
+    def hsm_master_sync(self):
+        """Download replica keys from LDAP to local HSM
+        & upload master and zone keys to LDAP."""
+        if not self.ismaster:
+            return
+
+        # TODO: paths
+        ipautil.run(['ods-signer', 'ipa-hsm-update'])
