@@ -1,0 +1,2 @@
+SOFTHSM2_CONF=/etc/ipa/dnssec/softhsm2.conf
+ISMASTER=1

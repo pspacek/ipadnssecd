@@ -2,6 +2,7 @@
 
 import logging
 import ldap.dn
+import os
 
 from ipaserver.install import opendnssecinstance
 from syncrepl import SyncReplConsumer
@@ -20,7 +21,7 @@ class KeySyncer(SyncReplConsumer):
 
         # DNSSEC master should have OpenDNSSEC installed
         # TODO: Is this the best way?
-        if opendnssecinstance.OpenDNSSECInstance().is_configured():
+        if os.environ.get('ISMASTER', '0') == '1':
             self.ismaster = True
             self.odsmgr = ODSMgr()
         else:
