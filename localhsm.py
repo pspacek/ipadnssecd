@@ -10,7 +10,17 @@ import time
 from ipaplatform.paths import paths
 
 import _ipap11helper
-from abshsm import attrs_name2id, attrs_id2name, AbstractHSM, keytype_id2name, keytype_name2id
+from abshsm import attrs_name2id, attrs_id2name, AbstractHSM, keytype_id2name, keytype_name2id, ldap2p11helper_api_params
+
+private_key_api_params = set(["label", "id", "data", "unwrapping_key",
+    "wrapping_mech", "key_type", "cka_always_authenticate", "cka_copyable",
+    "cka_decrypt", "cka_derive", "cka_extractable", "cka_modifiable",
+    "cka_private", "cka_sensitive", "cka_sign", "cka_sign_recover",
+    "cka_unwrap", "cka_wrap_with_trusted"])
+
+public_key_api_params = set(["label", "id", "data", "cka_copyable",
+    "cka_derive", "cka_encrypt", "cka_modifiable", "cka_private",
+    "cka_trusted", "cka_verify", "cka_verify_recover", "cka_wrap"])
 
 class Key(collections.MutableMapping):
     def __init__(self, p11, handle):
@@ -152,20 +162,26 @@ class LocalHSM(AbstractHSM):
 
 
     def import_public_key(self, source, data):
-        h = self.p11.import_public_key(
-                label = source['ipk11label'],
-                id = source['ipk11id'],
-                data = data,
-                cka_copyable = source['ipk11copyable'],
-                cka_derive = source['ipk11derive'],
-                cka_encrypt = source['ipk11encrypt'],
-                cka_modifiable = source['ipk11modifiable'],
-                cka_private = source['ipk11private'],
-                cka_verify = source['ipk11verify'],
-                cka_verify_recover = source['ipk11verifyrecover'],
-                cka_wrap = source['ipk11wrap']
-                )
+        params = ldap2p11helper_api_params(source)
+        # filter out params inappropriate for public keys
+        for par in set(params.keys()).difference(public_key_api_params):
+            del params[par]
+        params['data'] = data
+
+        h = self.p11.import_public_key(**params)
         return Key(self.p11, h)
+
+    def import_private_key(self, source, data, unwrapping_key):
+        params = ldap2p11helper_api_params(source)
+        # filter out params inappropriate for private keys
+        for par in set(params.keys()).difference(private_key_api_params):
+            del params[par]
+        params['data'] = data
+        params['unwrapping_key'] = unwrapping_key.handle
+
+        h = self.p11.import_wrapped_private_key(**params)
+        return Key(self.p11, h)
+
 
 
 if __name__ == '__main__':
