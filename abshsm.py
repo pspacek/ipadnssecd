@@ -129,7 +129,6 @@ def ldap2p11helper_api_params(ldap_key):
     direct_param_map = {
             "ipk11label": "label",
             "ipk11id": "id",
-            "ipaprivatekey": "data",
             "ipk11copyable": "cka_copyable",
             "ipk11decrypt": "cka_decrypt",
             "ipk11derive": "cka_derive",
@@ -153,7 +152,7 @@ def ldap2p11helper_api_params(ldap_key):
 
     indirect_param_map = {
             "ipk11keytype": ("key_type", keytype_name2id),
-            "unwrapping_key": ("wrapping_mech", wrappingmech_name2id),
+            "ipawrappingmech": ("wrapping_mech", wrappingmech_name2id),
             }
 
     for ldap_name, rules in indirect_param_map.iteritems():
