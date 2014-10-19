@@ -16,4 +16,5 @@ ln --force -s "$(pwd)/ipa-dnskeysyncd.service" /lib/systemd/system/ipa-dnskeysyn
 ln --force -s "$(pwd)/ipa-ods-exporter.service" /lib/systemd/system/ipa-ods-exporter.service 
 ln --force -s "$(pwd)/ipa-ods-exporter.socket" /lib/systemd/system/ipa-ods-exporter.socket
 ln --force -s "$(pwd)/sysconfig/ipa-dnskeysyncd" /etc/sysconfig/ipa-dnskeysyncd
+ln --force -s "$(pwd)/sysconfig/ipa-ods-exporter" /etc/sysconfig/ipa-ods-exporter
 systemctl daemon-reload
