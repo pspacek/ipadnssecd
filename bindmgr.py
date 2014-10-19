@@ -12,7 +12,7 @@ import subprocess
 from ipalib import api
 import ipalib.constants
 from ipapython.dn import DN
-from ipapython import ipa_log_manager
+from ipapython import ipa_log_manager, ipautil
 from ipaplatform.paths import paths
 
 from temp import TemporaryDirectory
@@ -38,26 +38,9 @@ class BINDMgr(object):
         self.ldap_keys = {}
         self.modified_zones = set()
 
-    def util(self, cmd, cwd=None):
-        """Call given command and return stdout + stderr.
-
-        Raises CalledProcessError if returncode != 0.
-        """
-        self.log.debug('Executing: %s', cmd)
-        util = subprocess.Popen(
-            cmd, close_fds=True, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, cwd=cwd)
-        stdout, ignore = util.communicate()
-        if util.returncode != 0:
-            ex = subprocess.CalledProcessError(util.returncode, cmd, stdout)
-            self.log.exception(ex)
-            self.log.error("Command output: %s", stdout)
-            raise ex
-        return stdout
-
     def notify_zone(self, zone):
         cmd = ['rndc', 'sign', zone.to_text()]
-        output = self.util(cmd)
+        output = ipautil.run(cmd)[0]
         self.log.info(output)
 
     def dn2zone_name(self, dn):
@@ -129,7 +112,7 @@ class BINDMgr(object):
         cmd.append(zone.to_text())
 
         # keys has to be readable by ODS & named
-        basename = self.util(cmd).strip()
+        basename = ipautil.run(cmd)[0].strip()
         private_fn = "%s/%s.private" % (workdir, basename)
         os.chmod(private_fn, FILE_PERM)
         # this is useful mainly for debugging

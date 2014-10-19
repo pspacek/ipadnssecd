@@ -5,7 +5,7 @@ from lxml import etree
 import dns.name
 import subprocess
 
-from ipapython import ipa_log_manager
+from ipapython import ipa_log_manager, ipautil
 
 # hack: zone object UUID is stored as path to imaginary zone file
 ENTRYUUID_PREFIX = "/var/lib/ipa/dns/zone/entryUUID/"
@@ -120,22 +120,12 @@ class ODSMgr(object):
         self.zl_ldap = LDAPZoneListReader()
 
     def ksmutil(self, params):
-        """Call ods-ksmutil with given parameters and return stdout + stderr.
+        """Call ods-ksmutil with given parameters and return stdout.
 
         Raises CalledProcessError if returncode != 0.
         """
         cmd = ['ods-ksmutil'] + params
-        self.log.debug('Executing: %s', cmd)
-        ksmutil = subprocess.Popen(
-            cmd, close_fds=True, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT)
-        stdout, ignore = ksmutil.communicate()
-        if ksmutil.returncode != 0:
-            ex = subprocess.CalledProcessError(ksmutil.returncode, cmd, stdout)
-            self.log.exception(ex)
-            self.log.error("Command output: %s", stdout)
-            raise ex
-        return stdout
+        return ipautil.run(cmd)[0]
 
     def get_ods_zonelist(self):
         stdout = self.ksmutil(['zonelist', 'export'])
