@@ -383,7 +383,7 @@ log.debug('Connected')
 ### DNSSEC master: key synchronization
 ldaphsm = LDAPHSM(log, ldap, DN("cn=keys", "cn=sec", dns_dn))
 localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
-        open(paths.DNSSEC_SOFTHSM_PIN_SO).read())
+        open(paths.DNSSEC_SOFTHSM_PIN).read())
 
 ldap2master_replica_keys_sync(log, ldaphsm, localhsm)
 master2ldap_master_keys_sync(log, ldaphsm, localhsm)
