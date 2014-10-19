@@ -4,6 +4,7 @@ import logging
 import ldap.dn
 import os
 
+from ipapython import ipautil
 from ipaserver.install import opendnssecinstance
 from syncrepl import SyncReplConsumer
 from odsmgr import ODSMgr
@@ -93,13 +94,18 @@ class KeySyncer(SyncReplConsumer):
         self.bindmgr.sync()
 
     # idnsSecKey wrapper
+    # Assumption: metadata points to the same key blob all the time,
+    # i.e. it is not necessary to re-download blobs because of change in DNSSEC
+    # metadata - DNSSEC flags or timestamps.
     def key_meta_add(self, uuid, dn, newattrs):
+        self.hsm_sync()
         self.bindmgr.ldap_event('add', uuid, newattrs)
         self.bindmgr_sync()
 
     def key_meta_del(self, uuid, dn, oldattrs):
         self.bindmgr.ldap_event('del', uuid, oldattrs)
         self.bindmgr_sync()
+        self.hsm_sync()
 
     def key_metadata_sync(self, uuid, dn, oldattrs, newattrs):
         self.bindmgr.ldap_event('mod', uuid, newattrs)
@@ -132,3 +138,11 @@ class KeySyncer(SyncReplConsumer):
 
         if self.init_done:
             self.odsmgr.sync()
+
+    def hsm_sync(self):
+        """Download keys from LDAP to local HSM."""
+        if self.ismaster:
+            return
+
+        # TODO: paths
+        ipautil.run(['/usr/libexec/ipa-dnskeysync-replica.py'])
