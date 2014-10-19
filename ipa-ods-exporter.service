@@ -4,7 +4,7 @@ Wants=ipa-ods-exporter.socket
 After=ipa-ods-exporter.socket
 
 [Service]
-Environment='SOFTHSM2_CONF=/etc/ipa/dnssec/softhsm2.conf'
+EnvironmentFile=/etc/sysconfig/ipa-ods-exporter
 ExecStart=/usr/share/ipa/ipadnssecd/ipa-ods-exporter.py
 User=ods
 PrivateTmp=yes

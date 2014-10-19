@@ -192,11 +192,11 @@ def get_ods_keys(zone_name):
 
         return keys
 
-def sync_set_metadata(log, source_set, target_set):
-    """sync metadata from source key set to target key set
+def sync_set_metadata_2ldap(log, source_set, target_set):
+    """sync metadata from source key set to target key set in LDAP
 
     Keys not present in both sets are left intact."""
-    log = log.getChild('sync_metadata')
+    log = log.getChild('sync_set_metadata_2ldap')
     matching_keys = set(source_set.keys()).intersection(set(target_set.keys()))
     log.info("keys in local HSM & LDAP: %s", hex_set(matching_keys))
     for key_id in matching_keys:

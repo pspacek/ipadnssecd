@@ -104,14 +104,16 @@ modifiable_attrs_id2name = {
 modifiable_attrs_name2id = dict(zip(modifiable_attrs_id2name.values(),
     modifiable_attrs_id2name.keys()))
 
-def sync_pkcs11_metadata(source, target):
+def sync_pkcs11_metadata(log, source, target):
     """sync ipk11 metadata from source object to target object"""
 
     # iterate over list of modifiable PKCS#11 attributes - this prevents us
     # from attempting to set read-only attributes like CKA_LOCAL
     for attr in modifiable_attrs_name2id:
         if attr in source:
-            target[attr] = source[attr]
+            if source[attr] != target[attr]:
+                log.debug('Updating attribute %s from "%s" to "%s"', attr, repr(source[attr]), repr(target[attr]))
+                target[attr] = source[attr]
 
 def populate_pkcs11_metadata(source, target):
     """populate all ipk11 metadata attributes in target object from source object"""
@@ -150,7 +152,7 @@ def ldap2p11helper_api_params(ldap_key):
     # and some others needs conversion
 
     indirect_param_map = {
-            "ipk11keytype": ("keytype", keytype_name2id),
+            "ipk11keytype": ("key_type", keytype_name2id),
             "unwrapping_key": ("wrapping_mech", wrappingmech_name2id),
             }
 
