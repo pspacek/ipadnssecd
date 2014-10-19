@@ -294,15 +294,18 @@ def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
     # synchroniza zone keys
     log = log.getChild('master2ldap_zone_keys')
     keypairs_ldap = ldapkeydb.zone_keypairs
+    log.debug("zone keys in LDAP: %s", hex_set(keypairs_ldap))
 
     pubkeys_local = localhsm.zone_pubkeys
     privkeys_local = localhsm.zone_privkeys
+    log.debug("zone keys in local HSM: %s", hex_set(privkeys_local))
 
     assert pubkeys_local.keys() == privkeys_local.keys(), \
             "IDs of private and public keys for DNS zones in local HSM does " \
             "not match to key pairs"
 
     new_keys = set(pubkeys_local) - set(keypairs_ldap)
+    log.debug("new zone keys in local HSM: %s", hex_set(new_keys))
     mkey = localhsm.active_master_key
     # wrap each new zone key pair with selected master key
     for zkey_id in new_keys:
@@ -342,20 +345,22 @@ def receive_zone_name(log):
     cmd = cmd.strip()
 
     try:
-        if not cmd.startswith('update '):
+        if cmd == 'ipa-hsm-update':
+            msg = 'HSM synchronization finished, exiting.'
+            conn.send('%s\n' % msg)
+            log.info(msg)
+            sys.exit(0)
+
+        elif not cmd.startswith('update '):
             conn.send('Command "%s" is not supported by IPA; ' \
                       'HSM synchronization was finished and the command ' \
                       'will be ignored.\n' % cmd)
-            log.info('Ignoring unsupported command "%s"', cmd)
-            sys.exit(0)
-
-        elif cmd == 'ipa-hsm-update':
-            conn.send('HSM update finished, exiting.\n')
+            log.info('Ignoring unsupported command "%s".', cmd)
             sys.exit(0)
 
         else:
-            conn.send('Request queued\n')
             zone_name = cmd2ods_zone_name(cmd)
+            conn.send('Update request for zone "%s" queued.\n' % zone_name)
             log.info('Processing command: "%s"', cmd)
 
     finally:
