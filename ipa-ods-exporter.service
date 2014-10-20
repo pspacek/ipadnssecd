@@ -5,7 +5,7 @@ After=ipa-ods-exporter.socket
 
 [Service]
 EnvironmentFile=/etc/sysconfig/ipa-ods-exporter
-ExecStart=/usr/libexec/ipa-ods-exporter
+ExecStart=/usr/libexec/ipa/ipa-ods-exporter
 User=ods
 PrivateTmp=yes
 Restart=on-failure

@@ -1,11 +1,10 @@
 #!/usr/bin/sh
 
-IPA_DIR="/usr/share/ipa"  #TODO find appropriate dir
-DAEMON_DIR="ipadnssecd"
+INSTALL_DIR="/usr/lib/python2.7/site-packages/ipapython/dnssec"
 
 FILES=*.py
 
-mkdir -p "$IPA_DIR/$DAEMON_DIR"
+mkdir -p "$INSTALL_DIR"
 #mkdir -p /etc/ipa/dnssec
 #cat > /etc/ipa/dnssec/softhsm2.conf << EOF
 ## SoftHSM v2 configuration file
@@ -16,7 +15,7 @@ mkdir -p "$IPA_DIR/$DAEMON_DIR"
 
 for file in $FILES
 do
-	ln --force -s "$(pwd)/$file" "$IPA_DIR/$DAEMON_DIR/$file"
+	ln --force -s "$(pwd)/$file" "$INSTALL_DIR/$file"
 done
 
 ln --force -s "$(pwd)/ipa-dnskeysyncd.service" /lib/systemd/system/ipa-dnskeysyncd.service
@@ -24,7 +23,7 @@ ln --force -s "$(pwd)/ipa-ods-exporter.service" /lib/systemd/system/ipa-ods-expo
 ln --force -s "$(pwd)/ipa-ods-exporter.socket" /lib/systemd/system/ipa-ods-exporter.socket
 #ln --force -s "$(pwd)/sysconfig/ipa-dnskeysyncd" /etc/sysconfig/ipa-dnskeysyncd
 #ln --force -s "$(pwd)/sysconfig/ipa-ods-exporter" /etc/sysconfig/ipa-ods-exporter
-ln --force -s "$(pwd)/ipa-dnskeysync-replica" /usr/libexec/ipa-dnskeysync-replica
-ln --force -s "$(pwd)/ipa-ods-exporter" /usr/libexec/ipa-ods-exporter
-ln --force -s "$(pwd)/ipa-dnskeysyncd" /usr/libexec/ipa-dnskeysyncd
+ln --force -s "$(pwd)/ipa-dnskeysync-replica" /usr/libexec/ipa/ipa-dnskeysync-replica
+ln --force -s "$(pwd)/ipa-dnskeysyncd" /usr/libexec/ipa/ipa-dnskeysyncd
+ln --force -s "$(pwd)/ipa-ods-exporter" /usr/libexec/ipa/ipa-ods-exporter
 systemctl daemon-reload

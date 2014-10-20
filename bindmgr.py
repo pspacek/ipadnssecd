@@ -17,8 +17,6 @@ from ipaplatform.paths import paths
 
 from temp import TemporaryDirectory
 
-# TODO
-zone_dir_template = '/var/named/dyndb-ldap/ipa/master/%s'
 time_bindfmt = '%Y%m%d%H%M%S'
 
 # this daemon should run under ods:named user:group
@@ -102,8 +100,7 @@ class BINDMgr(object):
             'object %s is not a DNS zone key' % attrs['dn']
 
         uri = "%s;pin-source=%s" % (attrs['idnsSecKeyRef'][0], paths.DNSSEC_SOFTHSM_PIN)
-        # TODO: path?
-        cmd = ['dnssec-keyfromlabel-pkcs11', '-K', workdir, '-a', attrs['idnsSecAlgorithm'][0], '-l', uri]
+        cmd = [paths.DNSSEC_KEYFROMLABEL, '-K', workdir, '-a', attrs['idnsSecAlgorithm'][0], '-l', uri]
         cmd += self.dates2params(attrs)
         if attrs.get('idnsSecKeySep', ['FALSE'])[0].upper() == 'TRUE':
             cmd += ['-f', 'KSK']
@@ -122,9 +119,9 @@ class BINDMgr(object):
             dn_file.write(attrs['dn'])
 
     def sync_zone(self, zone):
-        # TODO: ipa.paths.zone_dir_template
         self.log.info('Synchronizing zone %s' % zone)
-        zone_path = zone_dir_template % zone.to_text(omit_final_dot=True)
+        zone_path = os.path.join(paths.BIND_LDAP_DNS_ZONE_WORKDIR,
+                zone.to_text(omit_final_dot=True))
         try:
             os.makedirs(zone_path)
         except OSError as e:

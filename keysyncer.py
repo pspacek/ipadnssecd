@@ -4,7 +4,9 @@ import logging
 import ldap.dn
 import os
 
+from ipaplatform.paths import paths
 from ipapython import ipautil
+
 from syncrepl import SyncReplConsumer
 from odsmgr import ODSMgr
 from bindmgr import BINDMgr
@@ -163,9 +165,7 @@ class KeySyncer(SyncReplConsumer):
             return
         if not self.init_done:
             return
-
-        # TODO: paths
-        ipautil.run(['/usr/libexec/ipa-dnskeysync-replica'])
+        ipautil.run([paths.IPA_DNSKEYSYNCD_REPLICA])
 
     # triggered by modification to ipk11PublicKey objects
     def hsm_master_sync(self):
@@ -175,6 +175,4 @@ class KeySyncer(SyncReplConsumer):
             return
         if not self.init_done:
             return
-
-        # TODO: paths
-        ipautil.run(['ods-signer', 'ipa-hsm-update'])
+        ipautil.run([paths.ODS_SIGNER])
