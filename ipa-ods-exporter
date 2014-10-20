@@ -300,9 +300,10 @@ def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
     privkeys_local = localhsm.zone_privkeys
     log.debug("zone keys in local HSM: %s", hex_set(privkeys_local))
 
-    assert pubkeys_local.keys() == privkeys_local.keys(), \
+    assert set(pubkeys_local) == set(privkeys_local), \
             "IDs of private and public keys for DNS zones in local HSM does " \
-            "not match to key pairs"
+            "not match to key pairs" % \
+            (hex_set(pubkeys_local), hex_set(privkeys_local))
 
     new_keys = set(pubkeys_local) - set(keypairs_ldap)
     log.debug("new zone keys in local HSM: %s", hex_set(new_keys))
