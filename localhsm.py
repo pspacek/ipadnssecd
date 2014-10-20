@@ -3,6 +3,7 @@
 from binascii import hexlify
 import collections
 import logging
+import os
 from pprint import pprint
 import sys
 import time
@@ -185,6 +186,8 @@ class LocalHSM(AbstractHSM):
 
 
 if __name__ == '__main__':
+    if 'SOFTHSM2_CONF' not in os.environ:
+        os.environ['SOFTHSM2_CONF'] = paths.DNSSEC_SOFTHSM2_CONF
     localhsm = LocalHSM(paths.LIBSOFTHSM2_SO, 0,
             open(paths.DNSSEC_SOFTHSM_PIN).read())
 
