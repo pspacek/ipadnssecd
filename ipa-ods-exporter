@@ -302,7 +302,7 @@ def master2ldap_zone_keys_sync(log, ldapkeydb, localhsm):
 
     assert set(pubkeys_local) == set(privkeys_local), \
             "IDs of private and public keys for DNS zones in local HSM does " \
-            "not match to key pairs" % \
+            "not match to key pairs: %s vs. %s" % \
             (hex_set(pubkeys_local), hex_set(privkeys_local))
 
     new_keys = set(pubkeys_local) - set(keypairs_ldap)
