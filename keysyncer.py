@@ -5,7 +5,6 @@ import ldap.dn
 import os
 
 from ipapython import ipautil
-from ipaserver.install import opendnssecinstance
 from syncrepl import SyncReplConsumer
 from odsmgr import ODSMgr
 from bindmgr import BINDMgr

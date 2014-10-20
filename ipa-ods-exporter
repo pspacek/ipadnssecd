@@ -31,9 +31,9 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
-from abshsm import sync_pkcs11_metadata, wrappingmech_name2id
-from ldapkeydb import LdapKeyDB
-from localhsm import LocalHSM
+from ipapython.dnssec.abshsm import sync_pkcs11_metadata, wrappingmech_name2id
+from ipapython.dnssec.ldapkeydb import LdapKeyDB
+from ipapython.dnssec.localhsm import LocalHSM
 import _ipap11helper
 
 DAEMONNAME = 'ipa-ods-exporter'

@@ -17,7 +17,7 @@ from ipapython import ipautil
 from ipaserver.plugins.ldap2 import ldap2
 from ipaplatform.paths import paths
 
-from keysyncer import KeySyncer
+from ipapython.dnssec.keysyncer import KeySyncer
 
 DAEMONNAME = 'ipa-dnskeysyncd'
 PRINCIPAL = None  # not initialized yet
