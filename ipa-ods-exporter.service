@@ -9,7 +9,7 @@ ExecStart=/usr/libexec/ipa/ipa-ods-exporter
 User=ods
 PrivateTmp=yes
 Restart=on-failure
-RestartSec=10s
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target

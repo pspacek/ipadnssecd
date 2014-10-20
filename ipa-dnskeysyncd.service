@@ -9,7 +9,7 @@ Group=named
 SupplementaryGroups=ods
 PrivateTmp=yes
 Restart=on-failure
-RestartSec=10s
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target
